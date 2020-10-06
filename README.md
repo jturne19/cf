@@ -5,22 +5,22 @@ PHANGS correlation function work with ALMA GMC catalog and HST cluster catalog
 ## Data
 
 ### Current Galaxies
-| Galaxy   |Number GMCs | Number Star Clusters | Number Class 1,2,3   | Number Class 1,2     |
-|----------|------------|----------------------|----------------------|----------------------|
-| NGC0628C |            |       8501           |         661          |          476         |
-| NGC0628E |            |       1997           |         111          |          91          |
-| NGC1433  |            |       2155           |         287          |          188         |
-| NGC1559  |            |       8363           |         927          |          715         |
-| NGC1566  |            |       8679           |         835          |          672         |
-| NGC1792  |            |       4295           |         615          |          521         |
-| NGC3351  |            |       4310           |         468          |          302         |
-| NGC3627  |            |       10153          |         941          |          761         |
-| NGC4535  |            |       2167           |         452          |          345         |
-| NGC4548  |            |       637            |                      |                      |
-| NGC4569  |            |       1159           |                      |                      |
-| NGC4571  |            |       832            |                      |                      |
-| NGC4689  |            |       1358           |                      |                      |
-| NGC5248  |            |       3212           |                      |                      |
+| Galaxy   |Number GMCs | Number Star Clusters | Number Class 1,2,3   | Number Class 1,2     | Notes                           |
+|----------|------------|----------------------|----------------------|----------------------|---------------------------------|
+| NGC0628C |            |       8501           |         661          |          476         |                                 |
+| NGC0628E |            |       1997           |         111          |          91          |                                 |
+| NGC1433  |            |       2155           |         287          |          188         |                                 |
+| NGC1559  |            |       8363           |         927          |          715         |                                 |
+| NGC1566  |            |       8679           |         835          |          672         |                                 |
+| NGC1792  |            |       4295           |         615          |          521         |                                 |
+| NGC3351  |            |       4310           |         468          |          302         |                                 |
+| NGC3627  |            |       10153          |         941          |          761         |                                 |
+| NGC4535  |            |       2167           |         452          |          345         |                                 |
+| NGC4548  |            |       637            |                      |                      | Missing cluster classifications |
+| NGC4569  |            |       1159           |                      |                      | Missing cluster classifications |
+| NGC4571  |            |       832            |                      |                      | Missing cluster classifications |
+| NGC4689  |            |       1358           |                      |                      | Missing cluster classifications |
+| NGC5248  |            |       3212           |                      |                      | Missing cluster classifications |
 
 
 ### cluster catalogs 
