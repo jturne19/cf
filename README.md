@@ -7,20 +7,20 @@ PHANGS correlation function work with ALMA GMC catalog and HST cluster catalog
 ### Current Galaxies
 | Galaxy   |Number GMCs | Number Star Clusters | Number Class 1,2,3   | Number Class 1,2     |
 |----------|------------|----------------------|----------------------|----------------------|
-| NGC0628C |            |                      |                      |                      |
-| NGC0628E |            |                      |                      |                      |
-| NGC1433  |            |                      |                      |                      |
-| NGC1559  |            |                      |                      |                      |
-| NGC1566  |            |                      |                      |                      |
-| NGC1792  |            |                      |                      |                      |
-| NGC3351  |            |                      |                      |                      |
-| NGC3627  |            |                      |                      |                      |
-| NGC4535  |            |                      |                      |                      |
-| NGC4548  |            |                      |                      |                      |
-| NGC4569  |            |                      |                      |                      |
-| NGC4571  |            |                      |                      |                      |
-| NGC4689  |            |                      |                      |                      |
-| NGC5248  |            |                      |                      |                      |
+| NGC0628C |            |       8501           |         661          |          476         |
+| NGC0628E |            |       1997           |         111          |          91          |
+| NGC1433  |            |       2155           |         287          |          188         |
+| NGC1559  |            |       8363           |         927          |          715         |
+| NGC1566  |            |       8679           |         835          |          672         |
+| NGC1792  |            |       4295           |         615          |          521         |
+| NGC3351  |            |       4310           |         468          |          302         |
+| NGC3627  |            |       10153          |         941          |          761         |
+| NGC4535  |            |       2167           |         452          |          345         |
+| NGC4548  |            |       637            |                      |                      |
+| NGC4569  |            |       1159           |                      |                      |
+| NGC4571  |            |       832            |                      |                      |
+| NGC4689  |            |       1358           |                      |                      |
+| NGC5248  |            |       3212           |                      |                      |
 
 
 ### cluster catalogs 
@@ -43,8 +43,7 @@ manually downloaded from PHANGS google drive > scratch > gmccats > v3p4_ST1p5 > 
 
 ## Scripts
 
-| Name | Location | Description |
-|------|----------|-------------|
-|      |          |             |
-|      |          |             |
-|      |          |             |
+| Name                 | Location  | Description |
+|----------------------|-----------|-------------|
+|`cluster_cat.py`      |`workflow` | create separate fits tables with class 1,2,3 and 1,2 for each galaxy  |
+|`cluster_cat_utils.py`|`utils`    | contains functions for manipulating the cluster catalogs              |
