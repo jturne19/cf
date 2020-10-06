@@ -21,7 +21,8 @@ PHANGS correlation function work with ALMA GMC catalog and HST cluster catalog
 | NGC4571  |            |       832            |                      |                      | Missing cluster classifications |
 | NGC4689  |            |       1358           |                      |                      | Missing cluster classifications |
 | NGC5248  |            |       3212           |                      |                      | Missing cluster classifications |
-
+|----------|------------|----------------------|----------------------|----------------------|---------------------------------|
+| Total    |            |       57,818         |         5,297        |          4,071       |                                 |
 
 ### cluster catalogs 
 
