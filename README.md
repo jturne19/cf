@@ -57,3 +57,5 @@ PHANGS-ALMA moment 0 broad maps also downloaded from `PHANGS google drive > Arch
 |`cluster_cat_utils.py`|`utils`    | contains functions for manipulating the cluster catalogs              |
 |`gmc_cat.py`		   |`workflow` | create ds9 region files for all the gmcs in the catalogs for each galaxy |
 |`gmc_cat_utils.py`    |`utils`    | contains functions for manipulating the gmc catalogs 				   |
+|`image.py`			   |`workflow` | create ds9 region files for all the HST footprints for each galaxye   |
+|`image_utils.py`	   |`utils`    | contains functions for manipulating the images   	 				   |
