@@ -7,8 +7,7 @@ PHANGS correlation function work with ALMA GMC catalog and HST cluster catalog
 ### Current Galaxies
 | Galaxy   |Number GMCs | Number Star Clusters | Number Class 1,2,3   | Number Class 1,2     | Notes                           |
 |----------|------------|----------------------|----------------------|----------------------|---------------------------------|
-| NGC0628C |    729     |       8501           |         661          |          476         | Need to combine C and E         |
-| NGC0628E |            |       1997           |         111          |          91          |                                 |
+| NGC0628  |    729     | 10498 (8501+1997)    |     772 (661+111)    |       567 (476+91)   | (Center + East pointings)       |
 | NGC1433  |    177     |       2155           |         287          |          188         |                                 |
 | NGC1559  |    727     |       8363           |         927          |          715         |                                 |
 | NGC1566  |    1111    |       8679           |         835          |          672         |                                 |
@@ -65,3 +64,5 @@ PHANGS-ALMA moment 0 broad maps also downloaded from `PHANGS google drive > Arch
 - generate ds9 region files for all the GMCs using `all_galaxies_gmc_region_files`
 - generate ds9 region files for all the star clusters using `all_galaxies_clust_region_files`
 - generate ds9 region files for the HST footprints using FLC files with `all_galaxies_flc_region_files`
+- manually made HST full footprint ds9 region files since i couldn't think of a way to do this automatically
+- combined the NGC0628C and NGC0628E cluster catalogs to make NGC0628. already have HST maps combined so this makes sense
