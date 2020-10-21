@@ -23,4 +23,4 @@ galaxy_list = ascii.read('master_galaxy.list')
 # print out number of clusters and make the new fits files if needed
 # all_galaxies_clust_cats(galaxy_list, data_dir, mkfits=False)
 
-all_galaxies_region_files(galaxy_list, data_dir, radius_pix=10)
+# all_galaxies_clust_region_files(galaxy_list, data_dir, radius_pix=10)
