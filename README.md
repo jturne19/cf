@@ -62,6 +62,6 @@ PHANGS-ALMA moment 0 broad maps also downloaded from `PHANGS google drive > Arch
 
 
 ### process notes
-- generate ds9 region files for all the GMCs using `mk_gmc_ds9_regions`
+- generate ds9 region files for all the GMCs using `all_galaxies_gmc_region_files`
 - generate ds9 region files for all the star clusters using `all_galaxies_clust_region_files`
 - generate ds9 region files for the HST footprints using FLC files with `all_galaxies_flc_region_files`
