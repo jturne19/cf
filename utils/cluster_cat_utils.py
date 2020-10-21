@@ -117,7 +117,7 @@ def mk_clust_ds9_regions(coord_dict, radius_pix, radius_asec, filename, color='g
 
 	f.close()
 
-def all_galaxies_region_files(galaxy_list, data_dir, radius_pix=10):
+def all_galaxies_clust_region_files(galaxy_list, data_dir, radius_pix=10):
 	""" loop through all the given galaxies and make ds9 region files for the star clusters
 	makes separate region files for class 1,2,3 and class 1,2 if available
 	makes hst image pixel region files and degree region files
