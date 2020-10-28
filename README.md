@@ -29,11 +29,11 @@ currently using the v1.0 internal catalogs
 
 manually downloaded from `PHANGS-HST box > Cluster Detection > v1.0 Internal Catalogs`
 
-`data_dir/hst/ngc????/ngc????_phangshst_base_catalog.fits`
+`data_dir/ngc????/hst/ngc????_phangshst_base_catalog.fits`
 
 PHANGS-HST images images downloaded from [PHANGS-HST STScI website](www.phangs.stsci.edu)
 
-`data_dir/hst/ngc????/ngc????_uvis_f275w_exp_drc_sci.fits`
+`data_dir/ngc????/hst/ngc????_uvis_f275w_exp_drc_sci.fits`
 
 
 ### GMC catalogs
@@ -42,22 +42,20 @@ currently using the native resolution v3.4_ST1.5 GMC catalogs
 
 manually downloaded from `PHANGS google drive > scratch > gmccats > v3p4_ST1p5 > native`
 
-`data_dir/alma/ngc????/ngc????_12m+7m+tp_co21_native_props.fits`
+`data_dir/ngc????/alma/ngc????_12m+7m+tp_co21_native_props.fits`
 
 PHANGS-ALMA moment 0 broad maps also downloaded from `PHANGS google drive > Archive > ALMA > delivery_v3p4 > broad_maps`
 
-`data_dir/alma/ngc????/ngc????_12m+7m+tp_co21_broad_mom0.fits`
+`data_dir/ngc????/alma/ngc????_12m+7m+tp_co21_broad_mom0.fits`
 
 ## Scripts
 
 | Name                 | Location  | Description |
 |----------------------|-----------|-------------|
-|`cluster_cat.py`      |`workflow` | create separate fits tables with class 1,2,3 and 1,2 for each galaxy  |
 |`cluster_cat_utils.py`|`utils`    | contains functions for manipulating the cluster catalogs              |
-|`gmc_cat.py`		   |`workflow` | create ds9 region files for all the gmcs in the catalogs for each galaxy |
 |`gmc_cat_utils.py`    |`utils`    | contains functions for manipulating the gmc catalogs 				   |
-|`image.py`			   |`workflow` | create ds9 region files for all the HST footprints for each galaxye   |
 |`image_utils.py`	   |`utils`    | contains functions for manipulating the images   	 				   |
+|`catalog_setup.py`	   |`workflow` | calling the functions for creating ds9 region files for everything and other 'setup' type things   |
 
 
 ### process notes
