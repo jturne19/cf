@@ -26,7 +26,8 @@ all_galaxies_gmc_region_files(master_galaxy_list, data_dir)
 # print out number of clusters and make the new fits files if needed
 all_galaxies_clust_cats(master_galaxy_list, data_dir, mkfits=False)
 
-# create ds9 region fiels for all the galaxies
+# create ds9 region files for all the galaxies
 all_galaxies_clust_region_files(master_galaxy_list, data_dir, radius_pix=10)
 
-
+# create ds9 region files for all the HST footprints
+all_galaxies_flc_region_files(galaxy_list, data_dir)
