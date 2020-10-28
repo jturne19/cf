@@ -60,10 +60,10 @@ def all_galaxies_clust_cats(galaxy_list, data_dir, mkfits=False):
 	
 		# check if the base catalog fits files exists
 		try:
-			base_cat = fits.open(data_dir + 'hst/%s/%s_phangshst_base_catalog.fits'%(gal_name,gal_name))[1].data
+			base_cat = fits.open(data_dir + '%s/hst/%s_phangshst_base_catalog.fits'%(gal_name,gal_name))[1].data
 	
 		except FileNotFoundError:
-			print(data_dir + 'hst/%s/%s_phangshst_base_catalog.fits not found, skipping'%(gal_name,gal_name))
+			print(data_dir + '%s/hst/%s_phangshst_base_catalog.fits not found, skipping'%(gal_name,gal_name))
 			continue
 		
 		n_total    = len(base_cat)
@@ -75,12 +75,12 @@ def all_galaxies_clust_cats(galaxy_list, data_dir, mkfits=False):
 			
 			# make new fits files with just class 1,2,3 and 1,2
 			if mkfits:
-				new_clust_fits_from_classes(base_cat, [1,2,3], data_dir + 'hst/%s/%s_phangshst_base_catalog.class123.fits'%(gal_name,gal_name))
-				new_clust_fits_from_classes(base_cat, [1,2], data_dir + 'hst/%s/%s_phangshst_base_catalog.class12.fits'%(gal_name,gal_name))
+				new_clust_fits_from_classes(base_cat, [1,2,3], data_dir + '%s/hst/%s_phangshst_base_catalog.class123.fits'%(gal_name,gal_name))
+				new_clust_fits_from_classes(base_cat, [1,2], data_dir + '%s/hst/%s_phangshst_base_catalog.class12.fits'%(gal_name,gal_name))
 	
 			# read those in
-			cat123 = fits.open(data_dir + 'hst/%s/%s_phangshst_base_catalog.class123.fits'%(gal_name,gal_name))[1].data
-			cat12  = fits.open(data_dir + 'hst/%s/%s_phangshst_base_catalog.class12.fits'%(gal_name,gal_name))[1].data
+			cat123 = fits.open(data_dir + '%s/hst/%s_phangshst_base_catalog.class123.fits'%(gal_name,gal_name))[1].data
+			cat12  = fits.open(data_dir + '%s/hst/%s_phangshst_base_catalog.class12.fits'%(gal_name,gal_name))[1].data
 			
 			n_class123 = len(cat123)
 			n_class12  = len(cat12)
@@ -138,9 +138,9 @@ def all_galaxies_clust_region_files(galaxy_list, data_dir, radius_pix=10):
 	
 		# check if the catalog fits files exists
 		try:
-			cat = fits.open(data_dir + 'hst/%s/%s_phangshst_base_catalog.fits'%(gal_name,gal_name))[1].data
+			cat = fits.open(data_dir + '%s/hst/%s_phangshst_base_catalog.fits'%(gal_name,gal_name))[1].data
 		except FileNotFoundError:
-			print(data_dir + 'hst/%s/%s_phangshst_base_catalog.fits not found, skipping'%(gal_name,gal_name))
+			print(data_dir + '%s/hst/%s_phangshst_base_catalog.fits not found, skipping'%(gal_name,gal_name))
 			continue
 	
 		# pull out sc coordinates 
@@ -153,7 +153,7 @@ def all_galaxies_clust_region_files(galaxy_list, data_dir, radius_pix=10):
 	
 		# read in image header to get cdelt so we can convert pixel to arcsec
 		# use 275 because its UVIS for all of them
-		image_hdr = fits.getheader(data_dir + 'hst/%s/%s_uvis_f275w_exp_drc_sci.fits'%(gal_name, gal_name))
+		image_hdr = fits.getheader(data_dir + '%s/hst/%s_uvis_f275w_exp_drc_sci.fits'%(gal_name, gal_name))
 	
 		# degrees per pix
 		cdelt = image_hdr['CD2_2']
@@ -162,13 +162,13 @@ def all_galaxies_clust_region_files(galaxy_list, data_dir, radius_pix=10):
 		# conver to arcsec
 		radius_asec = radius_deg.to(u.arcsec).value
 	
-		mk_clust_ds9_regions(coord_sc, radius_pix, radius_asec, data_dir + 'hst/%s/%s_allclusters'%(gal_name,gal_name), color='green')
+		mk_clust_ds9_regions(coord_sc, radius_pix, radius_asec, data_dir + '%s/hst/%s_allclusters'%(gal_name,gal_name), color='green')
 	
 		# check if the catalog has the cluster classifications
 		# and skip galaxies missing the classifications
 		if 'PHANGS_CLUSTER_CLASS' in cat.names:
 			
-			cat123 = fits.open(data_dir + 'hst/%s/%s_phangshst_base_catalog.class123.fits'%(gal_name,gal_name))[1].data
+			cat123 = fits.open(data_dir + '%s/hst/%s_phangshst_base_catalog.class123.fits'%(gal_name,gal_name))[1].data
 			
 			x	= cat123['PHANGS_X']
 			y	= cat123['PHANGS_Y']
@@ -176,9 +176,9 @@ def all_galaxies_clust_region_files(galaxy_list, data_dir, radius_pix=10):
 			dec	= cat123['PHANGS_DEC']
 			coord_sc = {'x': x, 'y': y, 'ra': ra, 'dec': dec}
 	
-			mk_clust_ds9_regions(coord_sc, radius_pix, radius_asec, data_dir + 'hst/%s/%s_class123'%(gal_name,gal_name), color='green')
+			mk_clust_ds9_regions(coord_sc, radius_pix, radius_asec, data_dir + '%s/hst/%s_class123'%(gal_name,gal_name), color='green')
 	
-			cat12  = fits.open(data_dir + 'hst/%s/%s_phangshst_base_catalog.class12.fits'%(gal_name,gal_name))[1].data
+			cat12  = fits.open(data_dir + '%s/hst/%s_phangshst_base_catalog.class12.fits'%(gal_name,gal_name))[1].data
 	
 			x	= cat123['PHANGS_X']
 			y	= cat123['PHANGS_Y']
@@ -186,4 +186,4 @@ def all_galaxies_clust_region_files(galaxy_list, data_dir, radius_pix=10):
 			dec	= cat123['PHANGS_DEC']
 			coord_sc = {'x': x, 'y': y, 'ra': ra, 'dec': dec}
 	
-			mk_clust_ds9_regions(coord_sc, radius_pix, radius_asec, data_dir + 'hst/%s/%s_class12'%(gal_name,gal_name), color='green')
+			mk_clust_ds9_regions(coord_sc, radius_pix, radius_asec, data_dir + '%s/hst/%s_class12'%(gal_name,gal_name), color='green')

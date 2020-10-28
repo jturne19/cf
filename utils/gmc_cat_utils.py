@@ -64,10 +64,10 @@ def all_galaxies_gmc_region_files(galaxy_list, data_dir):
 	
 		# check if the catalog fits files exists
 		try:
-			cat = fits.open(data_dir + 'alma/%s/%s_12m+7m+tp_co21_native_props.fits'%(gal_name,gal_name))[1].data
+			cat = fits.open(data_dir + '%s/alma/%s_12m+7m+tp_co21_native_props.fits'%(gal_name,gal_name))[1].data
 	
 		except FileNotFoundError:
-			print(data_dir + 'alma/%s/%s_12m+7m+tp_co21_native_props.fits not found, skipping'%(gal_name,gal_name))
+			print(data_dir + '%s/alma/%s_12m+7m+tp_co21_native_props.fits not found, skipping'%(gal_name,gal_name))
 			continue
 	
 		n_total = len(cat)
@@ -86,7 +86,7 @@ def all_galaxies_gmc_region_files(galaxy_list, data_dir):
 	
 		# will need to convert from pixels to arcsecs for major and minor axis
 		# need image header
-		mom0   = fits.open(data_dir + 'alma/%s/%s_12m+7m+tp_co21_broad_mom0.fits'%(gal_name, gal_name))[0]
+		mom0   = fits.open(data_dir + '%s/alma/%s_12m+7m+tp_co21_broad_mom0.fits'%(gal_name, gal_name))[0]
 		header = mom0.header
 		# degrees per pix
 		cdelt = header['CDELT2']
@@ -104,4 +104,4 @@ def all_galaxies_gmc_region_files(galaxy_list, data_dir):
 		coord_gmc = {'x': x, 'y': y, 'ra': ra, 'dec': dec, 'pa': pa_deg, 'maj_deg': maj_deg, 'min_deg': min_deg, 'maj_pix': maj_pix, 'min_pix': min_pix}
 	
 		# make ds9 region files for all the GMCs
-		mk_gmc_ds9_regions(coord_gmc, data_dir + 'alma/%s/%s_gmc_cat'%(gal_name, gal_name), color='blue')
+		mk_gmc_ds9_regions(coord_gmc, data_dir + '%s/alma/%s_gmc_cat'%(gal_name, gal_name), color='blue')
