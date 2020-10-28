@@ -72,10 +72,10 @@ def all_galaxies_flc_region_files(galaxy_list, data_dir):
 	
 		print(gal_name)
 
-		flc_list = glob.glob(data_dir + 'hst/%s/flc/*_flc.fits'%(gal_name))
+		flc_list = glob.glob(data_dir + '%s/hst/flc/*_flc.fits'%(gal_name))
 		flc_list = np.sort(flc_list)
 
-		f = open(data_dir + 'hst/%s/flc/%s_all_flc.deg.reg'%(gal_name,gal_name), 'w')
+		f = open(data_dir + '%s/hst/flc/%s_all_flc.deg.reg'%(gal_name,gal_name), 'w')
 		f.write('fk5\n')
 
 		for flc in flc_list:
