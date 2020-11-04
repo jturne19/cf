@@ -10,7 +10,7 @@ from astropy.coordinates import SkyCoord, search_around_sky
 import astropy.units as u
 import aplpy as ap
 
-def outline_plot(gal_name, data_dir, sc_coord_dict, center_ra, center_dec, radius):
+def outline_plot(gal_name, data_dir, sc_coord_dict, center_ra, center_dec, radius=0.04):
 	""" create an 'outline plot' for the given galaxy
 	plot using the wcs info in the HST images
 	shows the ellipses of the GMCs 
@@ -58,7 +58,7 @@ def outline_plot(gal_name, data_dir, sc_coord_dict, center_ra, center_dec, radiu
 	fig.close()
 
 
-def all_galaxies_outline_plots(galaxy_list, data_dir, sc_class='class12'):
+def all_galaxies_outline_plots(galaxy_list, data_dir, sc_class='class12', radius=[0.04]):
 	"""
 
 	"""
@@ -94,4 +94,6 @@ def all_galaxies_outline_plots(galaxy_list, data_dir, sc_class='class12'):
 
 		sc_coord_dict = {'x': x_sc, 'y': y_sc, 'ra': ra_sc, 'dec': dec_sc}
 
-		outline_plot(gal_name, data_dir, sc_coord_dict, center_ra=center_ra, center_dec=center_dec, radius=0.04)
+		gal_plot_radius = radius[i]
+
+		outline_plot(gal_name, data_dir, sc_coord_dict, center_ra=center_ra, center_dec=center_dec, radius=gal_plot_radius)
