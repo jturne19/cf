@@ -55,6 +55,7 @@ PHANGS-ALMA moment 0 broad maps also downloaded from `PHANGS google drive > Arch
 |`cluster_cat_utils.py`|`utils`    | contains functions for manipulating the cluster catalogs              |
 |`gmc_cat_utils.py`    |`utils`    | contains functions for manipulating the gmc catalogs 				   |
 |`image_utils.py`	   |`utils`    | contains functions for manipulating the images   	 				   |
+|`plot_utils.py` 	   |`utils`    | contains functions for creating figures/plots 						   |
 |`catalog_setup.py`	   |`workflow` | calling the functions for creating ds9 region files for everything and other 'setup' type things   |
 
 
@@ -64,3 +65,4 @@ PHANGS-ALMA moment 0 broad maps also downloaded from `PHANGS google drive > Arch
 - generate ds9 region files for the HST footprints using FLC files with `all_galaxies_flc_region_files`
 - manually made HST full footprint ds9 region files since i couldn't think of a way to do this automatically
 - combined the NGC0628C and NGC0628E cluster catalogs to make NGC0628. already have HST maps combined so this makes sense
+- generate the outline plots which overlay the GMC ellipses with the star cluster positions and HST footprints with `all_galaxies_outline_plots`
