@@ -39,4 +39,11 @@ galaxy_list = ascii.read('galaxy.list')
 #   	  ngc0628 ngc1433 ngc1559 ngc1566 ngc1792 ngc3351 ngc3627 ngc4535
 radius = [0.04, 0.03, 0.024, 0.03, 0.025, 0.025, 0.04, 0.025]
 
-all_galaxies_outline_plots(galaxy_list, data_dir, sc_class='class12', radius=radius)
+# all_galaxies_outline_plots(galaxy_list, data_dir, sc_class='class12', radius=radius)
+
+# now with the 3-color trilogy images as the background
+# all_galaxies_outline_plots(galaxy_list, data_dir, sc_class='class12', radius=radius, bkgd='trilogy')
+
+# outline plots color-coded by cluster age
+# radius = [0.025]
+all_galaxies_outline_plots(galaxy_list, data_dir, sc_class='class12', radius=radius, color_code='age')
