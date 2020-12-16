@@ -54,10 +54,7 @@ PHANGS-ALMA moment 0 broad maps also downloaded from `PHANGS google drive > Arch
 
 | Name                 | Location  | Description |
 |----------------------|-----------|-------------|
-|`cluster_cat_utils.py`|`utils`    | contains functions for manipulating the cluster catalogs              |
-|`gmc_cat_utils.py`    |`utils`    | contains functions for manipulating the gmc catalogs 				   |
-|`image_utils.py`	   |`utils`    | contains functions for manipulating the images   	 				   |
-|`plot_utils.py` 	   |`utils`    | contains functions for creating figures/plots 						   |
+|`utils.py`			   |`utils`    | contains all the functions/utilities 		             |					 
 |`catalog_setup.py`	   |`workflow` | calling the functions for creating ds9 region files for everything and other 'setup' type things   |
 
 
