@@ -42,4 +42,7 @@ radius = [0.04, 0.03, 0.024, 0.03, 0.025, 0.025, 0.04, 0.025]
 # all_galaxies_outline_plots(galaxy_list, data_dir, sc_class='class12', radius=radius, bkgd='trilogy')
 
 # outline plots color-coded by cluster age
-all_galaxies_outline_plots(galaxy_list, data_dir, sc_class='class12', radius=radius, color_code='age')
+# all_galaxies_outline_plots(galaxy_list, data_dir, sc_class='class12', radius=radius, color_code='age')
+
+# generate the mask fits images which define where the HST and ALMA footprints overlap
+generate_overlap_mask(galaxy_list, data_dir)
