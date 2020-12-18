@@ -377,6 +377,98 @@ def all_galaxies_flc_region_files(galaxy_list, data_dir):
 
 		f.close()
 
+
+def generate_overlap_mask(galaxy_list, data_dir):
+	""" function to go through the given galaxies and 
+	create a 'mask' which identifies where the HST footprints
+	overlap with the ALMA footprints
+	which is needed for defining the region to populate the 
+	random data points for the correlation functions
+
+	"""
+	gal_id 		= galaxy_list['id']
+	gal_alt_id 	= galaxy_list['alt_id']
+	gal_dist 	= galaxy_list['dist']
+
+	for i in range(len(galaxy_list)):
+	
+		gal_name = gal_id[i]
+		print('')
+		print(gal_name)
+
+		# read in hst 555 (V-band) fits image
+		hst_hdulist = fits.open(data_dir + '%s/hst/%s_uvis_f555w_exp_drc_sci.fits'%(gal_name,gal_name))
+		hst_data = hst_hdulist[0].data
+		hst_header = hst_hdulist[0].header
+
+		# wcs coordinates
+		w_hst = WCS(hst_header, fobj=hst_hdulist)
+
+		# grid of pixel locations
+		hst_pixel_grid = np.meshgrid(np.arange(0,len(hst_data[0,:]),1), np.arange(0,len(hst_data[:,0]),1))
+
+		# convert pixels to wcs 
+		ra, dec = w_hst.wcs_pix2world(hst_pixel_grid[0], hst_pixel_grid[1], 0.5)
+
+		# read in moment 0 ALMA map
+		alma_hdulist = fits.open(data_dir + '%s/alma/%s_12m+7m+tp_co21_broad_mom0.fits'%(gal_name, gal_name))
+		alma_data = alma_hdulist[0].data
+		alma_header = alma_hdulist[0].header
+
+		# get the ALMA wcs info
+		w_alma = WCS(alma_header, fobj=alma_hdulist, naxis=2)
+
+		# convert the ra, dec to alma pixel locations
+		alma_x, alma_y = w_alma.wcs_world2pix(ra, dec, 0.5)
+
+		# round the float pixel locations to integers which will be used for indexing the ALMA data values
+		alma_x_int = np.array([np.round(x).astype(int) for x in alma_x])
+		alma_y_int = np.array([np.round(y).astype(int) for y in alma_y])
+
+		# create array of nans the same shape as the hst data which will hold the ALMA data
+		# corresponding to the HST pixels
+		# i.e., mapping HST pixels to the larger ALMA ones
+		alma_data_hst_pix = np.zeros(np.shape(hst_data)) + np.nan
+
+		# find the maximum ALMA pixel locations
+		alma_max_x = len(alma_data[0,:])
+		alma_max_y = len(alma_data[:,0])
+
+		# create dictionary with all our data which will go into the pandas data frame
+		# HST pixel x, y locations, HST pixel ra, dec locations, HST pixel locations in the ALMA map,
+		# HST pixel value, corresponding ALMA pixel value,
+		# mask column is the whole point ---> 1 will mean the footprints overlap
+		pixels_data = {'hst_x': hst_pixel_grid[0].flatten().astype('int16'), 'hst_y': hst_pixel_grid[1].flatten().astype('int16'), 
+					   'ra': ra.flatten(), 'dec': dec.flatten(), 'alma_x': alma_x_int.flatten().astype('int16'), 'alma_y': alma_y_int.flatten().astype('int16'), 
+					   'hst_val': hst_data.flatten(), 'alma_val': alma_data_hst_pix.flatten(), 'mask': np.zeros(len(hst_data.flatten()),dtype=np.int8)}
+
+		# something's up with going from astropy fits read-in to pandas so have to make an astropy table first
+		# and use the built-in function to convert to a pandas dataframe
+		pixels_df = Table(pixels_data).to_pandas()
+
+		# find the pixels which lie within the ALMA footprint because that's usually smaller than HST
+		tmp_df = pixels_df.loc[(pixels_df['alma_x'] > 0) & (pixels_df['alma_x'] <= alma_max_x) & (pixels_df['alma_y'] > 0) & (pixels_df['alma_y'] <= alma_max_y)]
+		# pull out the ALMA x, y pixel locations which act as idices for the ALMA data
+		wy_alma = tmp_df['alma_y'].to_numpy() - 1
+		wx_alma = tmp_df['alma_x'].to_numpy() - 1
+
+		# pull out the ALMA values for the interested pixels
+		alma_data_replace = alma_data[(wy_alma, wx_alma)]
+		# replace this into the dataframe for the alma_val column
+		pixels_df.loc[(pixels_df['alma_x'] > 0) & (pixels_df['alma_x'] <= alma_max_x) & (pixels_df['alma_y'] > 0) & (pixels_df['alma_y'] <= alma_max_y), ('alma_val')] = alma_data_replace
+		# find where the HST value is not 0 and the ALMA value is not nan
+		# this determines the overlap in footprint so mask is set to 1
+		pixels_df.loc[(pixels_df['hst_val'] != 0) & (pixels_df['alma_val'].isnull() == False), ('mask')] = 1
+
+		# pull out mask column
+		mask = pixels_df['mask'].to_numpy()
+		# reshape into the original HST image shape
+		mask = np.reshape(mask, np.shape(hst_data))
+		# write to a fits image using the HST header 
+		hdu = fits.PrimaryHDU(mask, header=hst_header)
+		hdu.writeto(data_dir + '%s/%s_hst_alma_overlap_mask.fits'%(gal_name, gal_name), overwrite=True)
+
+
 ########################################################
 # making figures/plots functions
 ########################################################
