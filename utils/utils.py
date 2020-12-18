@@ -440,7 +440,7 @@ def generate_overlap_mask(galaxy_list, data_dir):
 		# mask column is the whole point ---> 1 will mean the footprints overlap
 		pixels_data = {'hst_x': hst_pixel_grid[0].flatten().astype('int16'), 'hst_y': hst_pixel_grid[1].flatten().astype('int16'), 
 					   'ra': ra.flatten(), 'dec': dec.flatten(), 'alma_x': alma_x_int.flatten().astype('int16'), 'alma_y': alma_y_int.flatten().astype('int16'), 
-					   'hst_val': hst_data.flatten(), 'alma_val': alma_data_hst_pix.flatten(), 'mask': np.zeros(len(hst_data.flatten()),dtype=np.int8)}
+					   'hst_val': hst_data.flatten(), 'alma_val': alma_data_hst_pix.flatten(), 'mask': np.zeros(len(hst_data.flatten()),dtype='int8')}
 
 		# something's up with going from astropy fits read-in to pandas so have to make an astropy table first
 		# and use the built-in function to convert to a pandas dataframe
@@ -463,7 +463,7 @@ def generate_overlap_mask(galaxy_list, data_dir):
 		# pull out mask column
 		mask = pixels_df['mask'].to_numpy()
 		# reshape into the original HST image shape
-		mask = np.reshape(mask, np.shape(hst_data))
+		mask = np.reshape(mask, np.shape(hst_data)).astype(int)
 		# write to a fits image using the HST header 
 		hdu = fits.PrimaryHDU(mask, header=hst_header)
 		hdu.writeto(data_dir + '%s/%s_hst_alma_overlap_mask.fits'%(gal_name, gal_name), overwrite=True)
