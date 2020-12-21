@@ -56,6 +56,7 @@ PHANGS-ALMA moment 0 broad maps also downloaded from `PHANGS google drive > Arch
 |----------------------|-----------|-------------|
 |`utils.py`			   |`utils`    | contains all the functions/utilities 		             |					 
 |`catalog_setup.py`	   |`workflow` | calling the functions for creating ds9 region files for everything and other 'setup' type things   |
+|`sc_gmc_sep.py`	   |`workflow` | calling the functions for finding the star cluster - gmc nearest neighbors and making histograms   |
 
 
 ### process notes
@@ -65,3 +66,5 @@ PHANGS-ALMA moment 0 broad maps also downloaded from `PHANGS google drive > Arch
 - manually made HST full footprint ds9 region files since i couldn't think of a way to do this automatically
 - combined the NGC0628C and NGC0628E cluster catalogs to make NGC0628. already have HST maps combined so this makes sense
 - generate the outline plots which overlay the GMC ellipses with the star cluster positions and HST footprints with `all_galaxies_outline_plots`
+- generate masks which define the overlap of the HST and ALMA footprints with `generate_overlap_mask`. need to use uwpa with more memory for the larger hst images 
+- find star cluster - gmc nearest neighbors and makes histograms split at 10 Myr in `sc_gmc_sep.py`
