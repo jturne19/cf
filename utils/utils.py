@@ -605,3 +605,83 @@ def all_galaxies_outline_plots(galaxy_list, data_dir, sc_class='class12', radius
 
 
 		outline_plot(gal_name, data_dir, sc_coord_dict, center_deg, radius=gal_plot_radius, bkgd=bkgd, color_arr=color_input, color_code=color_code )
+
+
+########################################################
+# star cluster - gmc separation functions
+########################################################
+
+def sc_gmc_sep(sc_coords, gmc_coords, nn_number=3):
+	"""	takes the given star clusters and GMCs finds
+	the nearest GMC to each star cluster i.e., nearest neighbor
+	and returns the separation
+
+	"""
+	# search around basically full footprint to make sure we get at least the 3 nearest neighbors
+	idx_sc, idx_gmc, sep, dist3d = search_around_sky(sc_coords, gmc_coords, 5*u.arcmin)
+
+	nn_seps = []
+	nn_dists = []
+
+	# loop through all the star clusters
+	for i in range(len(sc_coords)):
+
+		wi = np.where(idx_sc == i)[0]
+
+		sci   = idx_sc[wi]
+		gmci  = idx_gmc[wi]
+		sepi  = sep[wi]
+		disti = dist3d[wi]
+
+		wsort = np.argsort(sepi)
+		# separation (deg) for the given nearest neighbor number
+		nn_sep  = sepi[wsort][:nn_number].value
+		nn_dist = disti[wsort][:nn_number].to(u.pc).value
+
+
+		nn_seps.append(nn_sep)
+		nn_dists.append(nn_dist)
+
+	nn_seps = np.array(nn_seps)
+	nn_dists = np.array(nn_dists)
+	
+	return nn_seps, nn_dists
+
+
+def sc_gmc_sep_hist(sep, dist, age, filename, age_split=10, nn_label='1st', sep_unit='arcsec', **kwargs):
+	""" histograms for the given nearest neighbor separations and distances
+	
+	"""
+
+	wyoung = np.where(age <= age_split)
+	wold   = np.where(age > age_split)
+
+	all_med = np.median(sep)
+	young_med = np.median(sep[wyoung])
+	old_med = np.median(sep[wold])
+
+	fig, ax1 = plt.subplots(1,1, figsize=(5,5))
+
+	ax1.hist(sep, label='All Clusters', histtype='step', **kwargs)
+	ax1.axvline(all_med, ls='--', color='black', lw=1, zorder=0)
+	
+	ax1.hist(sep[wyoung], label=r'$\leq$ %i Myr'%age_split, histtype='step', edgecolor='#377eb8', lw=2.5, zorder=1)
+	ax1.axvline(young_med, ls='--', color='#377eb8', lw=1, zorder=1)
+
+	ax1.hist(sep[wold], label=r'$>$ %i Myr'%age_split, histtype='step', edgecolor='#e41a1c', lw=2.5, zorder=2)
+	ax1.axvline(old_med, ls='--', color='#e41a1c', lw=1, zorder=2)
+
+	ax2 = ax1.twiny()
+	ax2.hist(dist, histtype='step', lw=0)
+
+	ax1.set_xlabel('%s Nearest Neighbor Separation (%s)'%(nn_label, sep_unit))
+	ax2.set_xlabel('Distance (pc)')
+
+	ax1.set_ylabel('Number')
+
+	ax1.legend(loc='upper right', fontsize='small')
+
+
+	plt.savefig(filename + '.png', bbox_inches='tight')
+	plt.savefig(filename + '.pdf', bbox_inches='tight')
+	plt.close()
