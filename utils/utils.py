@@ -473,7 +473,7 @@ def generate_overlap_mask(galaxy_list, data_dir):
 # making figures/plots functions
 ########################################################
 
-def outline_plot(gal_name, data_dir, sc_coord_dict, center_deg, radius=0.04, bkgd=None, color_arr=[], color_code='' ):
+def outline_plot(gal_name, data_dir, sc_coord_dict, center_deg, sc_class='class12', radius=0.04, bkgd=None, color_arr=[], color_code='' ):
 	""" create an 'outline plot' for the given galaxy
 	plot using the wcs info in the HST images
 	shows the ellipses of the GMCs 
@@ -484,6 +484,7 @@ def outline_plot(gal_name, data_dir, sc_coord_dict, center_deg, radius=0.04, bkg
 	data_dir 		str 		path to the directory containing the 'hst' and 'alma' directories
 	sc_coord_dict 	dict 		dictionary containing the star cluster coordinates: 'x', 'y', 'ra', 'dec'
 	center_deg 		tuple 		(RA,DEC) coordinate of the center of the galaxy in degrees
+	sc_class 		str 		chosen star cluster classes i.e., class12 or class123; needed for filename saving
 	radius 			float		radius of the image view in degrees; default = 0.04
 	bgkd 			bool		whether to include the 3-color image as the background
 	color_arr 		list/arr	if included, the cluster data points will be colored by the given array i.e., cluster age
@@ -544,15 +545,15 @@ def outline_plot(gal_name, data_dir, sc_coord_dict, center_deg, radius=0.04, bkg
 	f.tick_labels.set_yformat('dd:mm:ss')
 
 	if bkgd != None:
-		f.save(data_dir + '%s/%s_outlineplot_%s.png'%(gal_name, gal_name, bkgd))
-		f.save(data_dir + '%s/%s_outlineplot_%s.pdf'%(gal_name, gal_name, bkgd))
+		f.save(data_dir + '%s/%s_%s_outlineplot_%s.png'%(gal_name, gal_name, sc_class, bkgd))
+		f.save(data_dir + '%s/%s_%s_outlineplot_%s.pdf'%(gal_name, gal_name, sc_class, bkgd))
 	elif len(color_arr) > 0:
-		fig.savefig(data_dir + '%s/%s_outlineplot_%s.png'%(gal_name, gal_name, color_code), bbox_inches='tight')
-		fig.savefig(data_dir + '%s/%s_outlineplot_%s.pdf'%(gal_name, gal_name, color_code), bbox_inches='tight')
+		fig.savefig(data_dir + '%s/%s_%s_outlineplot_%s.png'%(gal_name, gal_name, sc_class, color_code), bbox_inches='tight')
+		fig.savefig(data_dir + '%s/%s_%s_outlineplot_%s.pdf'%(gal_name, gal_name, sc_class, color_code), bbox_inches='tight')
 
 	else:
-		f.save(data_dir + '%s/%s_outlineplot.png'%(gal_name, gal_name))
-		f.save(data_dir + '%s/%s_outlineplot.pdf'%(gal_name, gal_name))
+		f.save(data_dir + '%s/%s_%s_outlineplot.png'%(gal_name, gal_name, sc_class))
+		f.save(data_dir + '%s/%s_%s_outlineplot.pdf'%(gal_name, gal_name, sc_class))
 
 
 	plt.close()
@@ -604,7 +605,7 @@ def all_galaxies_outline_plots(galaxy_list, data_dir, sc_class='class12', radius
 			color_input = []
 
 
-		outline_plot(gal_name, data_dir, sc_coord_dict, center_deg, radius=gal_plot_radius, bkgd=bkgd, color_arr=color_input, color_code=color_code )
+		outline_plot(gal_name, data_dir, sc_coord_dict, center_deg, sc_class=sc_class, radius=gal_plot_radius, bkgd=bkgd, color_arr=color_input, color_code=color_code )
 
 
 ########################################################
