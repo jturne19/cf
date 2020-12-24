@@ -19,6 +19,9 @@ import sys
 sys.path.append('/cherokee1/turner/phangs/cf/utils')
 from utils import *
 
+import matplotlib
+# non-interactive plots
+matplotlib.use('agg')
 
 # set path of the data dir
 data_dir = '/cherokee1/turner/phangs/cf/data/'
