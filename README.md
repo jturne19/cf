@@ -27,7 +27,7 @@ browse the figures showing the location of star clusters and GMCs - [http://phys
 | NGC4689  |    473     |       1358           |                      |                      | Missing cluster classifications |
 | NGC4826  |    169     |       1935           |                      |                      | Missing cluster classifications |
 | NGC5248  |    642     |       3434           |                      |                      | Missing cluster classifications |
-| Total    |    6,901   |       57,818         |         5,297        |          4,071       |                                 |
+| Total    |    8,501   |       79,313         |         6,735        |          5,154       |                                 |
 
 
 ### cluster catalogs 
