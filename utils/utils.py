@@ -378,6 +378,31 @@ def all_galaxies_flc_region_files(galaxy_list, data_dir):
 		f.close()
 
 
+def get_alma_pixel_coords(ra, dec, gal_name, data_dir, return_int=False):
+	""" given the ra and dec of an object, return the pixel position in the ALMA maps
+
+	"""
+	# read in alma map hdulist
+	alma_hdulist = fits.open(data_dir + '%s/alma/%s_12m+7m+tp_co21_broad_mom0.fits'%(gal_name, gal_name))
+	alma_header =alma_hdulist[0].header
+
+	# get alma map wcs 
+	w_alma = WCS(alma_header, fobj=alma_hdulist, naxis=2)
+	# convert ra, dec to alma map pixels
+	alma_x, alma_y = w_alma.wcs_world2pix(ra, dec, 1.0)
+
+	if return_int:
+		# integer pixel location if requested
+		alma_x_int = np.array([np.round(x).astype(int) for x in alma_x])
+		alma_y_int = np.array([np.round(y).astype(int) for y in alma_y])
+
+		return alma_x_int, alma_y_int
+
+	else:
+		
+		return alma_x, alma_y
+
+
 def generate_overlap_mask(galaxy_list, data_dir):
 	""" function to go through the given galaxies and 
 	create a 'mask' which identifies where the HST footprints
@@ -612,7 +637,7 @@ def all_galaxies_outline_plots(galaxy_list, data_dir, sc_class='class12', radius
 # star cluster - gmc separation functions
 ########################################################
 
-def sc_gmc_sep(sc_coords, gmc_coords, nn_number=3):
+def sc_gmc_sep(sc_coords, gmc_coords, nn_number=3, return_idx=False):
 	"""	takes the given star clusters and GMCs finds
 	the nearest GMC to each star cluster i.e., nearest neighbor
 	and returns the separation
@@ -621,8 +646,10 @@ def sc_gmc_sep(sc_coords, gmc_coords, nn_number=3):
 	# search around basically full footprint to make sure we get at least the 3 nearest neighbors
 	idx_sc, idx_gmc, sep, dist3d = search_around_sky(sc_coords, gmc_coords, 5*u.arcmin)
 
-	nn_seps = []
-	nn_dists = []
+	nn_seps    = []
+	nn_dists   = []
+	nn_idx_sc  = []
+	nn_idx_gmc = []
 
 	# loop through all the star clusters
 	for i in range(len(sc_coords)):
@@ -639,14 +666,26 @@ def sc_gmc_sep(sc_coords, gmc_coords, nn_number=3):
 		nn_sep  = sepi[wsort][:nn_number].value
 		nn_dist = disti[wsort][:nn_number].to(u.pc).value
 
-
 		nn_seps.append(nn_sep)
 		nn_dists.append(nn_dist)
 
+		nn_idx_sc.append(sci[wsort][:nn_number])
+		nn_idx_gmc.append(gmci[wsort][:nn_number])
+
 	nn_seps = np.array(nn_seps)
 	nn_dists = np.array(nn_dists)
-	
-	return nn_seps, nn_dists
+		
+	nn_idx_sc = np.array(nn_idx_sc)
+	nn_idx_gmc = np.array(nn_idx_gmc)
+
+
+	if return_idx:
+		
+		return nn_seps, nn_dists, nn_idx_sc, nn_idx_gmc
+
+	else:
+
+		return nn_seps, nn_dists
 
 
 def sc_gmc_sep_hist(sep, dist, age, filename, age_split=10, nn_label='1st', sep_unit='arcsec', **kwargs):
@@ -685,4 +724,64 @@ def sc_gmc_sep_hist(sep, dist, age, filename, age_split=10, nn_label='1st', sep_
 
 	plt.savefig(filename + '.png', bbox_inches='tight')
 	plt.savefig(filename + '.pdf', bbox_inches='tight')
+	plt.close()
+
+
+def sc_gmc_assoc_hist(df, filename, **kwargs):
+	""" histograms of the star cluster ages based on their association with gmcs
+
+	"""
+
+	w0 = df['assoc_num'] == 0
+	w1 = df['assoc_num'] == 1
+	w2 = df['assoc_num'] == 2
+	w3 = df['assoc_num'] == 3
+
+	age_all = df['age'].to_numpy()
+	lage_all = np.log10(age_all)
+	age_err_all = df['age_err'].to_numpy()
+	lage_err_all = age_err_all/age_all/np.log(10)
+
+	# gets bins for all clusters so we can have the same bins for all the hists
+	hist, bin_edges = np.histogram(lage_all, bins=10)
+
+	fig, ax1 = plt.subplots(1,1, figsize=(6,4))
+
+	ax1.hist(lage_all, bins=bin_edges,     density=True, histtype='step', edgecolor='black',   lw=2.5, label='All SCs (%i)'%(len(df)))
+	ax1.hist(lage_all[w1], bins=bin_edges, density=True, histtype='step', edgecolor='#377eb8', lw=2.5, label=r'$\leq 1$ $R_{\rm GMC}$ (%i)'%(len(df[w1])))
+	ax1.hist(lage_all[w2], bins=bin_edges, density=True, histtype='step', edgecolor='#ff7f00', lw=2.5, label=r'$1 < R_{\rm GMC} \leq 2 $ (%i)'%(len(df[w2])))
+	ax1.hist(lage_all[w3], bins=bin_edges, density=True, histtype='step', edgecolor='#e41a1c', lw=2.5, label=r'$2 < R_{\rm GMC} \leq 3 $ (%i)'%(len(df[w3])))
+	ax1.hist(lage_all[w0], bins=bin_edges, density=True, histtype='step', edgecolor='#984ea3', lw=2.5, label=r'Unassociated (%i)'%(len(df[w0])))
+
+	# ax1.axvline(np.median(lage_all),     ls='--', color='black',   lw=1.)
+	# ax1.axvline(np.median(lage_all[w1]), ls='--', color='#377eb8', lw=1.)
+	# ax1.axvline(np.median(lage_all[w2]), ls='--', color='#ff7f00', lw=1.)
+	# ax1.axvline(np.median(lage_all[w3]), ls='--', color='#e41a1c', lw=1.)
+	# ax1.axvline(np.median(lage_all[w0]), ls='--', color='#984ea3', lw=1.)
+
+	xmi, xma, ymi, yma = ax1.axis()
+
+	# medians with error bars
+	ax1.scatter(np.median(lage_all), yma, marker='D', color='black', s=30)
+	# ax1.errorbar(np.median(lage_all), yma, xerr=1.2533*np.std(lage_err_all)/np.sqrt(len(df)), ecolor='black', zorder=0)
+	ax1.scatter(np.median(lage_all[w1]), yma, marker='D', color='#377eb8', s=30)
+	# ax1.errorbar(np.median(lage_all[w1]), yma, xerr=1.2533*np.std(lage_err_all)/np.sqrt(len(df[w1])), ecolor='#377eb8', zorder=0)
+	ax1.scatter(np.median(lage_all[w2]), yma, marker='D', color='#ff7f00', s=30)
+	# ax1.errorbar(np.median(lage_all[w2]), yma, xerr=1.2533*np.std(lage_err_all)/np.sqrt(len(df[w2])), ecolor='#ff7f00', zorder=0)
+	ax1.scatter(np.median(lage_all[w3]), yma, marker='D', color='#e41a1c', s=30)
+	# ax1.errorbar(np.median(lage_all[w3]), yma, xerr=1.2533*np.std(lage_err_all)/np.sqrt(len(df[w3])), ecolor='#e41a1c', zorder=0)
+	ax1.scatter(np.median(lage_all[w0]), yma, marker='D', color='#984ea3', s=30)
+	# ax1.errorbar(np.median(lage_all[w0]), yma, xerr=1.2533*np.std(lage_err_all)/np.sqrt(len(df[w0])), ecolor='#984ea3', zorder=0)
+
+	ax1.set_xlabel('log(Age) [Myr]')
+	ax1.set_ylabel('Number')
+
+	ax1.set_xlim(xmi, xma+0.6)
+
+	plt.legend(loc='upper right', fontsize='x-small')
+
+
+	plt.savefig(filename + '.png', bbox_inches='tight')
+	plt.savefig(filename + '.pdf', bbox_inches='tight')
+
 	plt.close()
