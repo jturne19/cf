@@ -55,6 +55,13 @@ PHANGS-ALMA moment 0 broad maps also downloaded from `PHANGS google drive > Arch
 
 `data_dir/ngc????/alma/ngc????_12m+7m+tp_co21_broad_mom0.fits`
 
+PHANGS-ALMA environmental maps from Miguel Querejeta. downloaded from `PHANGS google drive > scratch > environmental_masks > Environmental_masks_v5`
+
+`data_dir/ngc????/alma/ngc????_mask_v5.fits`
+`data_dir/ngc????/alma/ngc????_simple.fits`
+
+
+
 ## Scripts
 
 | Name                 | Location  | Description |
@@ -62,6 +69,7 @@ PHANGS-ALMA moment 0 broad maps also downloaded from `PHANGS google drive > Arch
 |`utils.py`			   |`utils`    | contains all the functions/utilities 		             |					 
 |`catalog_setup.py`	   |`workflow` | calling the functions for creating ds9 region files for everything and other 'setup' type things   |
 |`sc_gmc_sep.py`	   |`workflow` | calling the functions for finding the star cluster - gmc nearest neighbors and making histograms   |
+|`sc_gmc_assoc.py`	   |`workflow` | calling the functions for associating star clusters with gmcs 									    |
 
 
 ### process notes
@@ -73,3 +81,7 @@ PHANGS-ALMA moment 0 broad maps also downloaded from `PHANGS google drive > Arch
 - generate the outline plots which overlay the GMC ellipses with the star cluster positions and HST footprints with `all_galaxies_outline_plots`
 - generate masks which define the overlap of the HST and ALMA footprints with `generate_overlap_mask`. need to use uwpa with more memory for the larger hst images (628, 3351, 3627)
 - find star cluster - gmc nearest neighbors and makes histograms split at 10 Myr in `sc_gmc_sep.py`
+	- also outputs csv files with all the star clusters in the overlap masks and their props + nearest neighbor info which can be read in as pandas dataframes
+- generate another dataframe/csv for each galaxy with the associated GMC + props for the star clusters in `sc_gmc_assoc.py`
+	- also produces histogram of star cluster ages for (i) within 1 Rgmc (ii) b/w 1 and 2 Rgmc (iii) b/w 2 and 3 Rgmc (iv) unassociated
+	- also make a 'mega' dataframe with all the galaxies together to allow the creation of histograms for each enivronmental location: center, bar, interarm, spiral arm, disk
