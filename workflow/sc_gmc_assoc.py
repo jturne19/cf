@@ -263,6 +263,11 @@ if __name__ == '__main__':
 	# mega_df = generate_mega_df(galaxy_list, data_dir, output=True)
 
 	mega_df = pd.read_csv(data_dir + 'sc_gmc_assoc_mega.csv')
+
+	w0 = mega_df['assoc_num'] == 0
+	w1 = mega_df['assoc_num'] == 1
+	w2 = mega_df['assoc_num'] == 2
+	w3 = mega_df['assoc_num'] == 3
 	
 	"""	simple environmental masks cheatsheet
 	1 = center (small bulge, nuclear ring & disk)
@@ -296,7 +301,7 @@ if __name__ == '__main__':
 
 		df = mega_df.loc[wall[i]]
 
-		# sc_gmc_assoc_hist(df, filename=data_dir+'sc_gmc_assoc_hist_%s'%(names[i]))
+		sc_gmc_assoc_hist(df, filename=data_dir+'sc_gmc_assoc_hist_%s'%(names[i]))
 
 		# star cluster ages
 		age_all = df['age'].to_numpy()
