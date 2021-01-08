@@ -296,6 +296,52 @@ def all_galaxies_gmc_region_files(galaxy_list, data_dir):
 		# make ds9 region files for all the GMCs
 		mk_gmc_ds9_regions(coord_gmc, data_dir + '%s/alma/%s_gmc_cat'%(gal_name, gal_name), color='blue')
 
+def generate_gmc_cat_masked(galaxy_list, data_dir):
+	""" function to generate the gmc catalog for just the gmcs which lie within the
+	HST-ALMA footprint overlap mask
+
+	"""
+	gal_id 		= galaxy_list['id']
+	gal_alt_id 	= galaxy_list['alt_id']
+	gal_dist 	= galaxy_list['dist']
+	
+	for i in range(len(galaxy_list)):
+
+		gal_name = gal_id[i]
+		print('')
+		print(gal_name)
+
+		# read in the full gmc cat
+		gmc_cat = fits.open(data_dir + '%s/alma/%s_12m+7m+tp_co21_native_props.fits'%(gal_name, gal_name))[1].data
+
+		# grab gmc ra, dec
+		ra, dec = gmc_cat['XCTR_DEG']*u.deg, gmc_cat['YCTR_DEG']*u.deg
+		coords = SkyCoord(ra, dec, frame='fk5', distance=gal_dist[i])
+
+		# read in the footprint overlap mask
+		mask_hdulist = fits.open(data_dir + '%s/%s_hst_alma_overlap_mask.fits'%(gal_name, gal_name))
+		mask_header = mask_hdulist[0].header
+		mask = mask_hdulist[0].data
+
+		# mask/hst wcs
+		w_mask = WCS(mask_header, fobj=mask_hdulist)
+
+		# convert gmc ra, dec to mask pixel locations
+		mask_x, mask_y = w_mask.wcs_world2pix(ra, dec, 1.0)
+
+		mask_x_int = np.array([np.round(x).astype(int) for x in mask_x])
+		mask_y_int = np.array([np.round(y).astype(int) for y in mask_y])
+
+		in_mask =np.array([True if mask[y,x] == 1 else False for y,x in zip(mask_y_int, mask_x_int)])
+
+		gmc_cat_in_mask = gmc_cat[in_mask]
+
+		# output
+		t = Table(gmc_cat_in_mask)
+		t.write(data_dir + '%s/alma/%s_gmc_cat_masked.fits'%(gal_name, gal_name), format='fits', overwrite=True)
+
+
+
 
 ########################################################
 # fits image specific functions
@@ -753,11 +799,11 @@ def sc_gmc_assoc_hist(df, filename, **kwargs):
 	ax1.hist(lage_all[w3], bins=bin_edges, density=True, histtype='step', edgecolor='#e41a1c', lw=2.5, label=r'$2 < R_{\rm GMC} \leq 3 $ (%i)'%(len(df[w3])))
 	ax1.hist(lage_all[w0], bins=bin_edges, density=True, histtype='step', edgecolor='#984ea3', lw=2.5, label=r'Unassociated (%i)'%(len(df[w0])))
 
-	# ax1.axvline(np.median(lage_all),     ls='--', color='black',   lw=1.)
-	# ax1.axvline(np.median(lage_all[w1]), ls='--', color='#377eb8', lw=1.)
-	# ax1.axvline(np.median(lage_all[w2]), ls='--', color='#ff7f00', lw=1.)
-	# ax1.axvline(np.median(lage_all[w3]), ls='--', color='#e41a1c', lw=1.)
-	# ax1.axvline(np.median(lage_all[w0]), ls='--', color='#984ea3', lw=1.)
+	ax1.axvline(np.median(lage_all),     ls='--', color='black',   lw=1.5)
+	ax1.axvline(np.median(lage_all[w1]), ls='--', color='#377eb8', lw=1.5)
+	ax1.axvline(np.median(lage_all[w2]), ls='--', color='#ff7f00', lw=1.5)
+	ax1.axvline(np.median(lage_all[w3]), ls='--', color='#e41a1c', lw=1.5)
+	ax1.axvline(np.median(lage_all[w0]), ls='--', color='#984ea3', lw=1.5)
 
 	xmi, xma, ymi, yma = ax1.axis()
 
