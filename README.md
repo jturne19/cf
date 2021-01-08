@@ -71,7 +71,7 @@ PHANGS-ALMA environmental maps from Miguel Querejeta. downloaded from `PHANGS go
 |`catalog_setup.py`	   |`workflow` | calling the functions for creating ds9 region files for everything and other 'setup' type things   |
 |`sc_gmc_sep.py`	   |`workflow` | calling the functions for finding the star cluster - gmc nearest neighbors and making histograms   |
 |`sc_gmc_assoc.py`	   |`workflow` | calling the functions for associating star clusters with gmcs 									    |
-|`cf.py`	 		   |`workflow` | doing the two-point correlation function 															|
+|`tpcf.py`	 		   |`workflow` | doing the two-point correlation function 															|
 
 
 ### process notes
@@ -88,4 +88,4 @@ PHANGS-ALMA environmental maps from Miguel Querejeta. downloaded from `PHANGS go
 - generate another dataframe/csv for each galaxy with the associated GMC + props for the star clusters in `sc_gmc_assoc.py`
 	- also produces histogram of star cluster ages for (i) within 1 Rgmc (ii) b/w 1 and 2 Rgmc (iii) b/w 2 and 3 Rgmc (iv) unassociated
 	- also make a 'mega' dataframe with all the galaxies together to allow the creation of histograms for each enivronmental location: center, bar, interarm, spiral arm, disk
-- generate the two-point correlation functions for all the galaxies and make the plots in `cf.py`  
+- generate the two-point correlation functions for all the galaxies and make the plots in `tpcf.py`  
