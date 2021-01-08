@@ -83,6 +83,8 @@ for i in range(len(galaxy_list)):
 
 	sc_cat_masked = np.delete(sc_cat, wfalse)
 
+	# generate_gmc_cat_masked(galaxy_list, data_dir)
+
 	# convert to SkyCoords
 	sc_coords = SkyCoord(ra=sc_ra*u.deg, dec=sc_dec*u.deg, frame='icrs', distance=dist*u.Mpc)
 	gmc_coords = SkyCoord(ra=gmc_ra*u.deg, dec=gmc_dec*u.deg, frame='fk5', distance=dist*u.Mpc)
