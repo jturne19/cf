@@ -773,7 +773,7 @@ def sc_gmc_sep_hist(sep, dist, age, filename, age_split=10, nn_label='1st', sep_
 	plt.close()
 
 
-def sc_gmc_assoc_hist(df, filename, **kwargs):
+def sc_gmc_assoc_hist(df, filename, errorbars=False, **kwargs):
 	""" histograms of the star cluster ages based on their association with gmcs
 
 	"""
@@ -787,6 +787,12 @@ def sc_gmc_assoc_hist(df, filename, **kwargs):
 	lage_all = np.log10(age_all)
 	age_err_all = df['age_err'].to_numpy()
 	lage_err_all = age_err_all/age_all/np.log(10)
+
+	med_age_sigma_all = bootstrap_median_error(age_all, age_err_all)
+	med_age_sigma1    = bootstrap_median_error(age_all[w1], age_err_all[w1])
+	med_age_sigma2    = bootstrap_median_error(age_all[w2], age_err_all[w2])
+	med_age_sigma3    = bootstrap_median_error(age_all[w3], age_err_all[w3])
+	med_age_sigma0    = bootstrap_median_error(age_all[w0], age_err_all[w0])
 
 	# gets bins for all clusters so we can have the same bins for all the hists
 	hist, bin_edges = np.histogram(lage_all, bins=10)
@@ -807,17 +813,20 @@ def sc_gmc_assoc_hist(df, filename, **kwargs):
 
 	xmi, xma, ymi, yma = ax1.axis()
 
-	# medians with error bars
+	# medians
 	ax1.scatter(np.median(lage_all), yma, marker='D', color='black', s=30)
-	# ax1.errorbar(np.median(lage_all), yma, xerr=1.2533*np.std(lage_err_all)/np.sqrt(len(df)), ecolor='black', zorder=0)
 	ax1.scatter(np.median(lage_all[w1]), yma, marker='D', color='#377eb8', s=30)
-	# ax1.errorbar(np.median(lage_all[w1]), yma, xerr=1.2533*np.std(lage_err_all)/np.sqrt(len(df[w1])), ecolor='#377eb8', zorder=0)
 	ax1.scatter(np.median(lage_all[w2]), yma, marker='D', color='#ff7f00', s=30)
-	# ax1.errorbar(np.median(lage_all[w2]), yma, xerr=1.2533*np.std(lage_err_all)/np.sqrt(len(df[w2])), ecolor='#ff7f00', zorder=0)
 	ax1.scatter(np.median(lage_all[w3]), yma, marker='D', color='#e41a1c', s=30)
-	# ax1.errorbar(np.median(lage_all[w3]), yma, xerr=1.2533*np.std(lage_err_all)/np.sqrt(len(df[w3])), ecolor='#e41a1c', zorder=0)
 	ax1.scatter(np.median(lage_all[w0]), yma, marker='D', color='#984ea3', s=30)
-	# ax1.errorbar(np.median(lage_all[w0]), yma, xerr=1.2533*np.std(lage_err_all)/np.sqrt(len(df[w0])), ecolor='#984ea3', zorder=0)
+
+	if errorbars:
+		ax1.errorbar(np.median(lage_all), yma, xerr=med_age_sigma_all, ecolor='black', zorder=0)
+		ax1.errorbar(np.median(lage_all[w1]), yma, xerr=med_age_sigma1, ecolor='#377eb8', zorder=0)
+		ax1.errorbar(np.median(lage_all[w2]), yma, xerr=med_age_sigma2, ecolor='#ff7f00', zorder=0)
+		ax1.errorbar(np.median(lage_all[w3]), yma, xerr=med_age_sigma3, ecolor='#e41a1c', zorder=0)
+		ax1.errorbar(np.median(lage_all[w0]), yma, xerr=med_age_sigma0, ecolor='#984ea3', zorder=0)
+
 
 	ax1.set_xlabel('log(Age) [Myr]')
 	ax1.set_ylabel('Number')
@@ -831,3 +840,23 @@ def sc_gmc_assoc_hist(df, filename, **kwargs):
 	plt.savefig(filename + '.pdf', bbox_inches='tight')
 
 	plt.close()
+
+
+def bootstrap_median_error(data, sigma, nbootstraps=10000):
+	"""	boostrap estimate of the error on the median of the distribution of input data and their errors/sigma
+		
+	"""
+
+	medians = np.zeros(nbootstraps)
+
+	for i in range(nbootstraps):
+
+		rand = np.random.normal(data, sigma)
+
+		medians[i] = np.median(rand)
+
+	std = np.std(medians)
+
+	return std
+
+
