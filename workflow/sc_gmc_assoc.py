@@ -154,7 +154,7 @@ def generate_sc_gmc_assoc_df(galaxy_list, data_dir):
 		# output to csv file
 		sc_df2.to_csv(data_dir + '%s/%s_cluster_catalog_in_mask_class12_assoc_gmc.csv'%(gal_name, gal_name), index=False)
 
-def make_sc_gmc_assoc_hists(galaxy_list, data_dir):
+def make_sc_gmc_assoc_hists(galaxy_list, data_dir, plot_errorbars=False):
 	""" loop through all the galaxies and make the histograms of the cluster ages with their gmc associations
 
 	"""
@@ -179,7 +179,7 @@ def make_sc_gmc_assoc_hists(galaxy_list, data_dir):
 		w2 = df['assoc_num'] == 2
 		w3 = df['assoc_num'] == 3
 
-		sc_gmc_assoc_hist(df, filename=data_dir+'%s/%s_sc_gmc_assoc_hist'%(gal_name, gal_name))
+		sc_gmc_assoc_hist(df, filename=data_dir+'%s/%s_sc_gmc_assoc_hist'%(gal_name, gal_name), errorbars=plot_errorbars)
 
 		# star cluster ages
 		age_all = df['age'].to_numpy()
@@ -187,26 +187,33 @@ def make_sc_gmc_assoc_hists(galaxy_list, data_dir):
 		age_err_all = df['age_err'].to_numpy()
 		lage_err_all = age_err_all/age_all/np.log(10)
 
+		# errors on the median ages 
+		med_age_sigma_all = bootstrap_median_error(age_all, age_err_all)
+		med_age_sigma1    = bootstrap_median_error(age_all[w1], age_err_all[w1])
+		med_age_sigma2    = bootstrap_median_error(age_all[w2], age_err_all[w2])
+		med_age_sigma3    = bootstrap_median_error(age_all[w3], age_err_all[w3])
+		med_age_sigma0    = bootstrap_median_error(age_all[w0], age_err_all[w0])
+
 		# log the stats for each galaxy
 		if i == 0:
 			f = open(data_dir + 'sc_gmc_assoc_stats.txt', 'w')
 			f.write(gal_name + '\n')
-			f.write('All star clusters median age: %.2f +/- %.2f Myr \n'%(np.median(age_all), 1.2533*np.std(age_all)/np.sqrt(len(age_all)) ) )
-			f.write('Within 1 R_gmc median age:    %.2f +/- %.2f Myr \n'%(np.median(age_all[w1]), 1.2533*np.std(age_all[w1])/np.sqrt(len(age_all[w1])) ) )
-			f.write('1 < R_gmc <= 2 median age:    %.2f +/- %.2f Myr \n'%(np.median(age_all[w2]), 1.2533*np.std(age_all[w2])/np.sqrt(len(age_all[w2])) ) )
-			f.write('2 < R_gmc <= 3 median age:    %.2f +/- %.2f Myr \n'%(np.median(age_all[w3]), 1.2533*np.std(age_all[w3])/np.sqrt(len(age_all[w3])) ) )
-			f.write('Unassociated median age:      %.2f +/- %.2f Myr \n'%(np.median(age_all[w0]), 1.2533*np.std(age_all[w0])/np.sqrt(len(age_all[w0])) ) )
+			f.write('All star clusters median age: %.2f +/- %.2f Myr \n'%(np.median(age_all), med_age_sigma_all))
+			f.write('Within 1 R_gmc median age:    %.2f +/- %.2f Myr \n'%(np.median(age_all[w1]), med_age_sigma1))
+			f.write('1 < R_gmc <= 2 median age:    %.2f +/- %.2f Myr \n'%(np.median(age_all[w2]), med_age_sigma2))
+			f.write('2 < R_gmc <= 3 median age:    %.2f +/- %.2f Myr \n'%(np.median(age_all[w3]), med_age_sigma3))
+			f.write('Unassociated median age:      %.2f +/- %.2f Myr \n'%(np.median(age_all[w0]), med_age_sigma0))
 			f.write('\n')
 			f.close()
 
 		else:
 			f = open(data_dir + 'sc_gmc_assoc_stats.txt', 'a')
 			f.write(gal_name + '\n')
-			f.write('All star clusters median age: %.2f +/- %.2f Myr \n'%(np.median(age_all), 1.2533*np.std(age_all)/np.sqrt(len(age_all)) ) )
-			f.write('Within 1 R_gmc median age:    %.2f +/- %.2f Myr \n'%(np.median(age_all[w1]), 1.2533*np.std(age_all[w1])/np.sqrt(len(age_all[w1])) ) )
-			f.write('1 < R_gmc <= 2 median age:    %.2f +/- %.2f Myr \n'%(np.median(age_all[w2]), 1.2533*np.std(age_all[w2])/np.sqrt(len(age_all[w2])) ) )
-			f.write('2 < R_gmc <= 3 median age:    %.2f +/- %.2f Myr \n'%(np.median(age_all[w3]), 1.2533*np.std(age_all[w3])/np.sqrt(len(age_all[w3])) ) )
-			f.write('Unassociated median age:      %.2f +/- %.2f Myr \n'%(np.median(age_all[w0]), 1.2533*np.std(age_all[w0])/np.sqrt(len(age_all[w0])) ) )
+			f.write('All star clusters median age: %.2f +/- %.2f Myr \n'%(np.median(age_all), med_age_sigma_all))
+			f.write('Within 1 R_gmc median age:    %.2f +/- %.2f Myr \n'%(np.median(age_all[w1]), med_age_sigma1))
+			f.write('1 < R_gmc <= 2 median age:    %.2f +/- %.2f Myr \n'%(np.median(age_all[w2]), med_age_sigma2))
+			f.write('2 < R_gmc <= 3 median age:    %.2f +/- %.2f Myr \n'%(np.median(age_all[w3]), med_age_sigma3))
+			f.write('Unassociated median age:      %.2f +/- %.2f Myr \n'%(np.median(age_all[w0]), med_age_sigma0))
 			f.write('\n')
 
 			f.close()
@@ -268,6 +275,31 @@ if __name__ == '__main__':
 	w1 = mega_df['assoc_num'] == 1
 	w2 = mega_df['assoc_num'] == 2
 	w3 = mega_df['assoc_num'] == 3
+
+	# bootstrap estimate of the uncertainty on the median ages
+	med_age_sigma_all = bootstrap_median_error(mega_df['age'], mega_df['age_err'] )
+	med_age_sigma0 = bootstrap_median_error(mega_df['age'][w0], mega_df['age_err'][w0] )
+	med_age_sigma1 = bootstrap_median_error(mega_df['age'][w1], mega_df['age_err'][w1] )
+	med_age_sigma2 = bootstrap_median_error(mega_df['age'][w2], mega_df['age_err'][w2] )
+	med_age_sigma3 = bootstrap_median_error(mega_df['age'][w3], mega_df['age_err'][w3] )
+
+	# stats
+	print('All star clusters median age: %.2f +/- %.2f Myr'%(np.median(mega_df.age), med_age_sigma_all))
+	print('1 Rgmc median age: %.2f +/- %.2f'%(mega_df.loc[w1].median()['age'], med_age_sigma1))
+	print('1 - 2 Rgmc median age: %.2f +/- %.2f'%(mega_df.loc[w2].median()['age'], med_age_sigma2))
+	print('2 - 3 Rgmc median age: %.2f +/- %.2f'%(mega_df.loc[w3].median()['age'], med_age_sigma3))
+	print('Unassoc median age: %.2f+/- %.2f'%(mega_df.loc[w0].median()['age'], med_age_sigma0))
+
+	# output 
+	f = open(data_dir + 'sc_gmc_assoc_stats.txt', 'a')
+	f.write('All Galaxies\n')
+	f.write('All star clusters median age: %.2f +/- %.2f Myr \n'%(np.median(mega_df.age), med_age_sigma_all))
+	f.write('Within 1 R_gmc median age:    %.2f +/- %.2f Myr \n'%(np.median(mega_df[w1].age), med_age_sigma1))
+	f.write('1 < R_gmc <= 2 median age:    %.2f +/- %.2f Myr \n'%(np.median(mega_df[w2].age), med_age_sigma2))
+	f.write('2 < R_gmc <= 3 median age:    %.2f +/- %.2f Myr \n'%(np.median(mega_df[w3].age), med_age_sigma3))
+	f.write('Unassociated median age:      %.2f +/- %.2f Myr \n'%(np.median(mega_df[w0].age), med_age_sigma0))
+	f.write('\n')
+	f.close()
 	
 	"""	simple environmental masks cheatsheet
 	1 = center (small bulge, nuclear ring & disk)
@@ -314,24 +346,30 @@ if __name__ == '__main__':
 		w2 = df['assoc_num'] == 2
 		w3 = df['assoc_num'] == 3
 
+		med_age_sigma_all = bootstrap_median_error(age_all, age_err_all)
+		med_age_sigma1    = bootstrap_median_error(age_all[w1], age_err_all[w1])
+		med_age_sigma2    = bootstrap_median_error(age_all[w2], age_err_all[w2])
+		med_age_sigma3    = bootstrap_median_error(age_all[w3], age_err_all[w3])
+		med_age_sigma0    = bootstrap_median_error(age_all[w0], age_err_all[w0])
+
 		# log the stats for each env
 		if i == 0:
 			f = open(data_dir + 'sc_gmc_assoc_stats_env.txt', 'w')
 			f.write(names[i] + '\n')
-			f.write('All star clusters median age: %.2f +/- %.2f Myr \n'%(np.median(age_all), 1.2533*np.std(age_all)/np.sqrt(len(age_all)) ) )
-			f.write('Within 1 R_gmc median age:    %.2f +/- %.2f Myr \n'%(np.median(age_all[w1]), 1.2533*np.std(age_all[w1])/np.sqrt(len(age_all[w1])) ) )
-			f.write('1 < R_gmc <= 2 median age:    %.2f +/- %.2f Myr \n'%(np.median(age_all[w2]), 1.2533*np.std(age_all[w2])/np.sqrt(len(age_all[w2])) ) )
-			f.write('2 < R_gmc <= 3 median age:    %.2f +/- %.2f Myr \n'%(np.median(age_all[w3]), 1.2533*np.std(age_all[w3])/np.sqrt(len(age_all[w3])) ) )
-			f.write('Unassociated median age:      %.2f +/- %.2f Myr \n'%(np.median(age_all[w0]), 1.2533*np.std(age_all[w0])/np.sqrt(len(age_all[w0])) ) )
+			f.write('All star clusters median age: %.2f +/- %.2f Myr \n'%(np.median(age_all), med_age_sigma_all) )
+			f.write('Within 1 R_gmc median age:    %.2f +/- %.2f Myr \n'%(np.median(age_all[w1]), med_age_sigma1 ) )
+			f.write('1 < R_gmc <= 2 median age:    %.2f +/- %.2f Myr \n'%(np.median(age_all[w2]), med_age_sigma2 ) )
+			f.write('2 < R_gmc <= 3 median age:    %.2f +/- %.2f Myr \n'%(np.median(age_all[w3]), med_age_sigma3 ) )
+			f.write('Unassociated median age:      %.2f +/- %.2f Myr \n'%(np.median(age_all[w0]), med_age_sigma0 ) )
 			f.write('\n')
 			f.close()
 		else:
 			f = open(data_dir + 'sc_gmc_assoc_stats_env.txt', 'a')
 			f.write(names[i] + '\n')
-			f.write('All star clusters median age: %.2f +/- %.2f Myr \n'%(np.median(age_all), 1.2533*np.std(age_all)/np.sqrt(len(age_all)) ) )
-			f.write('Within 1 R_gmc median age:    %.2f +/- %.2f Myr \n'%(np.median(age_all[w1]), 1.2533*np.std(age_all[w1])/np.sqrt(len(age_all[w1])) ) )
-			f.write('1 < R_gmc <= 2 median age:    %.2f +/- %.2f Myr \n'%(np.median(age_all[w2]), 1.2533*np.std(age_all[w2])/np.sqrt(len(age_all[w2])) ) )
-			f.write('2 < R_gmc <= 3 median age:    %.2f +/- %.2f Myr \n'%(np.median(age_all[w3]), 1.2533*np.std(age_all[w3])/np.sqrt(len(age_all[w3])) ) )
-			f.write('Unassociated median age:      %.2f +/- %.2f Myr \n'%(np.median(age_all[w0]), 1.2533*np.std(age_all[w0])/np.sqrt(len(age_all[w0])) ) )
+			f.write('All star clusters median age: %.2f +/- %.2f Myr \n'%(np.median(age_all), med_age_sigma_all) )
+			f.write('Within 1 R_gmc median age:    %.2f +/- %.2f Myr \n'%(np.median(age_all[w1]), med_age_sigma1 ) )
+			f.write('1 < R_gmc <= 2 median age:    %.2f +/- %.2f Myr \n'%(np.median(age_all[w2]), med_age_sigma2 ) )
+			f.write('2 < R_gmc <= 3 median age:    %.2f +/- %.2f Myr \n'%(np.median(age_all[w3]), med_age_sigma3 ) )
+			f.write('Unassociated median age:      %.2f +/- %.2f Myr \n'%(np.median(age_all[w0]), med_age_sigma0 ) )
 			f.write('\n')
 			f.close()
