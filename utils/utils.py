@@ -3,15 +3,23 @@ master file which contains all the utilities/functions
 
 """
 import glob
+import os
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt 
 import aplpy as ap
+
 from astropy.io import fits, ascii
 from astropy.coordinates import SkyCoord, search_around_sky
 from astropy.table import Table
 from astropy.wcs import WCS
 import astropy.units as u
+
+from scipy.optimize import curve_fit
+
+from astroML.decorators import pickle_results
+from astroML.correlation import bootstrap_two_point_angular
 
 ########################################################
 # cluster catalog specific functions
@@ -48,53 +56,63 @@ def new_clust_fits_from_classes(base_cat, classes, filename):
 		print(filename + ' already exists, exiting')
 
 
-def all_galaxies_clust_cats(galaxy_list, data_dir, mkfits=False):
+def all_galaxies_clust_cats(galaxy_list, data_dir, run_name, sc_base_cat_suffix='_phangshst_base_catalog',
+							gmc_cat_suffix='_12m+7m+tp_co21_nativeres_nativenoise_props', sc_class='class12', mkfits=False):
 	""" loop through all the given glaxies and print out the cluster numbers
-	and make new fits tables with class 1,2,3 and class 1,2
+	and make new fits tables with the chosen sc_class 
 
+	Inputs:
+	galaxy_list			astropy Table 	table that holds the list of galaxies to perform the analysis on
+	data_dir 			str 			path to the data directory; e.g., /cherokee1/turner/phangs/cf/data/
+	run_name 			str 			name of the run/test; e.g., run01
+	sc_base_cat_suffix	str 			suffix for the filename of the base star cluster catalog;
+										included here to make it easier if new cluster catalogs are generated [and the name changes i guess?]
+	gmc_cat_suffix  	str 			suffix for the filename of the gmc catalog; defaults to the latest gmc catalog
+	sc_class 			str 			which class of clusters to make the catalogs for; class12 or class123
+	mkfits 				bool 			if true, then fits tables with the cleaned cluster catalogs will be saved;
+										saves them as sc_cat_suffix + '.class12.fits' and sc_cat_suffix + '.class123.fits'
 	"""
 	gal_id 		= galaxy_list['id']
-	gal_alt_id 	= galaxy_list['alt_id']
 	gal_dist 	= galaxy_list['dist']
-	
 	
 	for i in range(len(galaxy_list)):
 	
 		gal_name = gal_id[i]
-		gal_alt_name = gal_alt_id[i]
-		
 		print('')
 		print(gal_name)
-	
+
+		# check if the run_name directory exists and if not, create it
+		if not os.path.exists(data_dir + '%s/%s'%(gal_name, run_name)):
+			os.makedirs(data_dir + '%s/%s'%(gal_name, run_name))
+
 		# check if the base catalog fits files exists
 		try:
-			base_cat = fits.open(data_dir + '%s/hst/%s_phangshst_base_catalog.fits'%(gal_name,gal_name))[1].data
+			base_cat = fits.open(data_dir + '%s/hst/%s%s.fits'%(gal_name,gal_name,sc_base_cat_suffix))[1].data
 	
 		except FileNotFoundError:
-			print(data_dir + '%s/hst/%s_phangshst_base_catalog.fits not found, skipping'%(gal_name,gal_name))
+			print(data_dir + '%s/hst/%s%s.fits not found, skipping'%(gal_name,gal_name,sc_base_cat_suffix))
 			continue
 		
-		n_total    = len(base_cat)
+		n_total = len(base_cat)
 		print('total number clusters = %i'%(n_total))
 		
+		if sc_class == 'class123':
+			classes = [1,2,3]
+		else:
+			classes = [1,2]
+
 		# check if the catalog has the cluster classifications
 		# and skip galaxies missing the classifications
 		if 'PHANGS_CLUSTER_CLASS' in base_cat.names:
 			
-			# make new fits files with just class 1,2,3 and 1,2
+			# make new fits files with the restricted classes
 			if mkfits:
-				new_clust_fits_from_classes(base_cat, [1,2,3], data_dir + '%s/hst/%s_phangshst_base_catalog.class123.fits'%(gal_name,gal_name))
-				new_clust_fits_from_classes(base_cat, [1,2], data_dir + '%s/hst/%s_phangshst_base_catalog.class12.fits'%(gal_name,gal_name))
+				new_clust_fits_from_classes(base_cat, classes, data_dir + '%s/%s/%s%s.%s.fits'%(gal_name,run_name,gal_name,sc_base_cat_suffix,sc_class))
 	
 			# read those in
-			cat123 = fits.open(data_dir + '%s/hst/%s_phangshst_base_catalog.class123.fits'%(gal_name,gal_name))[1].data
-			cat12  = fits.open(data_dir + '%s/hst/%s_phangshst_base_catalog.class12.fits'%(gal_name,gal_name))[1].data
-			
-			n_class123 = len(cat123)
-			n_class12  = len(cat12)
-		
-			print('number of class 1,2,3 = %i'%(n_class123))
-			print('number of class 1,2   = %i'%(n_class12))
+			sccat = fits.open(data_dir + '%s/%s/%s%s.%s.fits'%(gal_name,run_name,gal_name,sc_base_cat_suffix,sc_class))[1].data
+						
+			print('number of %s = %i'%(sc_class, len(sccat)))
 			print('')
 
 
@@ -125,30 +143,43 @@ def mk_clust_ds9_regions(coord_dict, radius_pix, radius_asec, filename, color='g
 
 	f.close()
 
-def all_galaxies_clust_region_files(galaxy_list, data_dir, radius_pix=10):
+def all_galaxies_clust_region_files(galaxy_list, data_dir, run_name, sc_base_cat_suffix='_phangshst_base_catalog',
+									gmc_cat_suffix='_12m+7m+tp_co21_nativeres_nativenoise_props', 
+									sc_class='class12', radius_pix=10):
 	""" loop through all the given galaxies and make ds9 region files for the star clusters
 	makes separate region files for class 1,2,3 and class 1,2 if available
 	makes hst image pixel region files and degree region files
-
-	radius_pix sets the circle radius in pixels, default is 10 pixels
 	
+	Inputs:
+	galaxy_list			astropy Table 	table that holds the list of galaxies to perform the analysis on
+	data_dir 			str 			path to the data directory; e.g., /cherokee1/turner/phangs/cf/data/
+	run_name 			str 			name of the run/test; e.g., run01
+	sc_base_cat_suffix	str 			suffix for the filename of the base star cluster catalog;
+										included here to make it easier if new cluster catalogs are generated [and the name changes i guess?]
+	gmc_cat_suffix  	str 			suffix for the filename of the gmc catalog; defaults to the latest gmc catalog
+	sc_class 			str 			which class of clusters to make the catalogs for; class12 or class123 
+	radius_pix 			int 			sets the ds9 circle region radius in pixels; default is 10 pixels
+
 	"""
 
 	gal_id 		= galaxy_list['id']
-	gal_alt_id 	= galaxy_list['alt_id']
 	gal_dist 	= galaxy_list['dist']
 	
 	for i in range(len(galaxy_list)):
 	
 		gal_name = gal_id[i]
-	
+		print('')
 		print(gal_name)
-	
+
+		# check if the run_name directory exists and if not, create it
+		if not os.path.exists(data_dir + '%s/%s'%(gal_name, run_name)):
+			os.makedirs(data_dir + '%s/%s'%(gal_name, run_name))
+
 		# check if the catalog fits files exists
 		try:
-			cat = fits.open(data_dir + '%s/hst/%s_phangshst_base_catalog.fits'%(gal_name,gal_name))[1].data
+			cat = fits.open(data_dir + '%s/hst/%s%s.fits'%(gal_name,gal_name,sc_base_cat_suffix))[1].data
 		except FileNotFoundError:
-			print(data_dir + '%s/hst/%s_phangshst_base_catalog.fits not found, skipping'%(gal_name,gal_name))
+			print(data_dir + '%s/hst/%s%s.fits not found, skipping'%(gal_name,gal_name,sc_base_cat_suffix))
 			continue
 	
 		# pull out sc coordinates 
@@ -170,39 +201,33 @@ def all_galaxies_clust_region_files(galaxy_list, data_dir, radius_pix=10):
 		# conver to arcsec
 		radius_asec = radius_deg.to(u.arcsec).value
 	
-		mk_clust_ds9_regions(coord_sc, radius_pix, radius_asec, data_dir + '%s/hst/%s_allclusters'%(gal_name,gal_name), color='green')
+		mk_clust_ds9_regions(coord_sc, radius_pix, radius_asec, data_dir + '%s/%s/%s_allclusters'%(gal_name,run_name,gal_name), color='green')
 	
 		# check if the catalog has the cluster classifications
 		# and skip galaxies missing the classifications
 		if 'PHANGS_CLUSTER_CLASS' in cat.names:
 			
-			cat123 = fits.open(data_dir + '%s/hst/%s_phangshst_base_catalog.class123.fits'%(gal_name,gal_name))[1].data
+			sccat = fits.open(data_dir + '%s/%s/%s%s.%s.fits'%(gal_name,run_name,gal_name,sc_base_cat_suffix,sc_class))[1].data
 			
-			x	= cat123['PHANGS_X']
-			y	= cat123['PHANGS_Y']
-			ra 	= cat123['PHANGS_RA']
-			dec	= cat123['PHANGS_DEC']
+			x	= sccat['PHANGS_X']
+			y	= sccat['PHANGS_Y']
+			ra 	= sccat['PHANGS_RA']
+			dec	= sccat['PHANGS_DEC']
 			coord_sc = {'x': x, 'y': y, 'ra': ra, 'dec': dec}
 	
-			mk_clust_ds9_regions(coord_sc, radius_pix, radius_asec, data_dir + '%s/hst/%s_class123'%(gal_name,gal_name), color='green')
-	
-			cat12  = fits.open(data_dir + '%s/hst/%s_phangshst_base_catalog.class12.fits'%(gal_name,gal_name))[1].data
-	
-			x	= cat123['PHANGS_X']
-			y	= cat123['PHANGS_Y']
-			ra 	= cat123['PHANGS_RA']
-			dec	= cat123['PHANGS_DEC']
-			coord_sc = {'x': x, 'y': y, 'ra': ra, 'dec': dec}
-	
-			mk_clust_ds9_regions(coord_sc, radius_pix, radius_asec, data_dir + '%s/hst/%s_class12'%(gal_name,gal_name), color='green')
-
+			mk_clust_ds9_regions(coord_sc, radius_pix, radius_asec, data_dir + '%s/%s/%s_%s'%(gal_name,run_name,gal_name,sc_class), color='green')
 
 ########################################################
 # GMC catalog specific functions
 ########################################################
 
 def mk_gmc_ds9_regions(coord_dict, filename, color='blue'):
-	""" function to make ds9 region files for the gmc catalog 
+	""" function to make ds9 region (both pixel and degree) files for the given gmc catalog 
+	
+	Inputs:
+	coord_dict 		dictionary 		dictionary which holds the GMC x,y positions, position angle, major and minor axis in pixels
+	filename 		str 			path and filename to name the output ds9 region files
+	color 			str 			color for the ds9 regions; default is blue
 
 	"""
 
@@ -234,30 +259,37 @@ def mk_gmc_ds9_regions(coord_dict, filename, color='blue'):
 
 	f.close()
 
-def all_galaxies_gmc_region_files(galaxy_list, data_dir):
+def all_galaxies_gmc_region_files(galaxy_list, data_dir, run_name, gmc_cat_suffix='_12m+7m+tp_co21_nativeres_nativenoise_props'):
 	""" loop through all the given galaxies and make ds9 region files for the GMCs
+
+	Inputs:
+	galaxy_list			astropy Table 	table that holds the list of galaxies to perform the analysis on
+	data_dir 			str 			path to the data directory; e.g., /cherokee1/turner/phangs/cf/data/
+	run_name 			str 			name of the run/test; e.g., run01
+	gmc_cat_suffix  	str 			suffix for the filename of the gmc catalog; defaults to the latest gmc catalog
 
 	"""
 
 	gal_id 		= galaxy_list['id']
-	gal_alt_id 	= galaxy_list['alt_id']
 	gal_dist 	= galaxy_list['dist']
-	
 	
 	# loop through all galaxies
 	for i in range(len(galaxy_list)):
 	
 		gal_name = gal_id[i]
-		gal_alt_name = gal_alt_id[i]
-	
+		print('')
 		print(gal_name)
-	
+
+		# check if the run_name directory exists and if not, create it
+		if not os.path.exists(data_dir + '%s/%s'%(gal_name, run_name)):
+			os.makedirs(data_dir + '%s/%s'%(gal_name, run_name))
+
 		# check if the catalog fits files exists
 		try:
-			cat = fits.open(data_dir + '%s/alma/%s_12m+7m+tp_co21_native_props.fits'%(gal_name,gal_name))[1].data
+			cat = fits.open(data_dir + '%s/alma/%s%s.fits'%(gal_name, gal_name, gmc_cat_suffix))[1].data
 	
 		except FileNotFoundError:
-			print(data_dir + '%s/alma/%s_12m+7m+tp_co21_native_props.fits not found, skipping'%(gal_name,gal_name))
+			print(data_dir + '%s/alma/%s%s.fits not found, skipping'%(gal_name, gal_name, gmc_cat_suffix))
 			continue
 	
 		n_total = len(cat)
@@ -294,9 +326,9 @@ def all_galaxies_gmc_region_files(galaxy_list, data_dir):
 		coord_gmc = {'x': x, 'y': y, 'ra': ra, 'dec': dec, 'pa': pa_deg, 'maj_deg': maj_deg, 'min_deg': min_deg, 'maj_pix': maj_pix, 'min_pix': min_pix}
 	
 		# make ds9 region files for all the GMCs
-		mk_gmc_ds9_regions(coord_gmc, data_dir + '%s/alma/%s_gmc_cat'%(gal_name, gal_name), color='blue')
+		mk_gmc_ds9_regions(coord_gmc, data_dir + '%s/%s/%s_gmc_cat'%(gal_name, run_name, gal_name), color='blue')
 
-def generate_gmc_cat_masked(galaxy_list, data_dir):
+def generate_gmc_cat_masked(galaxy_list, data_dir, run_name, gmc_cat_suffix='_12m+7m+tp_co21_nativeres_nativenoise_props'):
 	""" function to generate the gmc catalog for just the gmcs which lie within the
 	HST-ALMA footprint overlap mask
 
@@ -312,7 +344,7 @@ def generate_gmc_cat_masked(galaxy_list, data_dir):
 		print(gal_name)
 
 		# read in the full gmc cat
-		gmc_cat = fits.open(data_dir + '%s/alma/%s_12m+7m+tp_co21_native_props.fits'%(gal_name, gal_name))[1].data
+		gmc_cat = fits.open(data_dir + '%s/alma/%s%s.fits'%(gal_name, gal_name, gmc_cat_suffix))[1].data
 
 		# grab gmc ra, dec
 		ra, dec = gmc_cat['XCTR_DEG']*u.deg, gmc_cat['YCTR_DEG']*u.deg
@@ -338,7 +370,7 @@ def generate_gmc_cat_masked(galaxy_list, data_dir):
 
 		# output
 		t = Table(gmc_cat_in_mask)
-		t.write(data_dir + '%s/alma/%s_gmc_cat_masked.fits'%(gal_name, gal_name), format='fits', overwrite=True)
+		t.write(data_dir + '%s/%s/%s_gmc_cat_masked.fits'%(gal_name, run_name, gal_name), format='fits', overwrite=True)
 
 
 
@@ -544,7 +576,7 @@ def generate_overlap_mask(galaxy_list, data_dir):
 # making figures/plots functions
 ########################################################
 
-def outline_plot(gal_name, data_dir, sc_coord_dict, center_deg, sc_class='class12', radius=0.04, bkgd=None, color_arr=[], color_code='' ):
+def outline_plot(gal_name, data_dir, run_name, gmc_cat_suffix, sc_base_cat_suffix, sc_coord_dict, center_deg, sc_class='class12', radius=0.04, bkgd=None, color_arr=[], color_code='' ):
 	""" create an 'outline plot' for the given galaxy
 	plot using the wcs info in the HST images
 	shows the ellipses of the GMCs 
@@ -553,6 +585,10 @@ def outline_plot(gal_name, data_dir, sc_coord_dict, center_deg, sc_class='class1
 	Inputs:
 	gal_name		str 		name of the galaxy e.g., ngc0628
 	data_dir 		str 		path to the directory containing the 'hst' and 'alma' directories
+	run_name 			str 			name of the run/test; e.g., run01
+	sc_base_cat_suffix	str 			suffix for the filename of the base star cluster catalog;
+										included here to make it easier if new cluster catalogs are generated [and the name changes i guess?]
+	gmc_cat_suffix  	str 			suffix for the filename of the gmc catalog; defaults to the latest gmc catalog
 	sc_coord_dict 	dict 		dictionary containing the star cluster coordinates: 'x', 'y', 'ra', 'dec'
 	center_deg 		tuple 		(RA,DEC) coordinate of the center of the galaxy in degrees
 	sc_class 		str 		chosen star cluster classes i.e., class12 or class123; needed for filename saving
@@ -565,17 +601,16 @@ def outline_plot(gal_name, data_dir, sc_coord_dict, center_deg, sc_class='class1
 	"""
 	# read in GMC catalog
 	# not sure if it's needed or not, probably just need the GMC ellipses
-	gmc_cat = fits.open(data_dir + '%s/alma/%s_12m+7m+tp_co21_native_props.fits'%(gal_name,gal_name))[1].data
+	gmc_cat = fits.open(data_dir + '%s/alma/%s%s.fits'%(gal_name,gal_name,gmc_cat_suffix))[1].data
 	
 	# path to GMC ellipses/region file
-	gmc_region_file = data_dir + '%s/alma/%s_gmc_cat.blue.deg.reg'%(gal_name, gal_name)
+	gmc_region_file = data_dir + '%s/%s/%s_gmc_cat.blue.deg.reg'%(gal_name,run_name,gal_name)
 
 	# path to HST image file 
-	hst_image = data_dir + '%s/hst/%s_uvis_f555w_exp_drc_sci.fits'%(gal_name, gal_name)
+	hst_image = data_dir + '%s/hst/%s_uvis_f555w_exp_drc_sci.fits'%(gal_name,gal_name)
 
 	# path to full HST footprint file
-	footprint_file = data_dir + '%s/hst/%s_full_footprint.pix.reg'%(gal_name, gal_name)
-
+	footprint_file = data_dir + '%s/hst/%s_full_footprint.pix.reg'%(gal_name,gal_name)
 
 
 	if len(color_arr) > 0:
@@ -616,26 +651,43 @@ def outline_plot(gal_name, data_dir, sc_coord_dict, center_deg, sc_class='class1
 	f.tick_labels.set_yformat('dd:mm:ss')
 
 	if bkgd != None:
-		f.save(data_dir + '%s/%s_%s_outlineplot_%s.png'%(gal_name, gal_name, sc_class, bkgd))
-		f.save(data_dir + '%s/%s_%s_outlineplot_%s.pdf'%(gal_name, gal_name, sc_class, bkgd))
+		
+		f.save(data_dir + '%s/%s/%s_%s_outlineplot_%s.png'%(gal_name, run_name, gal_name, sc_class, bkgd))
+		f.save(data_dir + '%s/%s/%s_%s_outlineplot_%s.pdf'%(gal_name, run_name, gal_name, sc_class, bkgd))
+	
 	elif len(color_arr) > 0:
-		fig.savefig(data_dir + '%s/%s_%s_outlineplot_%s.png'%(gal_name, gal_name, sc_class, color_code), bbox_inches='tight')
-		fig.savefig(data_dir + '%s/%s_%s_outlineplot_%s.pdf'%(gal_name, gal_name, sc_class, color_code), bbox_inches='tight')
-
+		
+		fig.savefig(data_dir + '%s/%s/%s_%s_outlineplot_%s.png'%(gal_name, run_name, gal_name, sc_class, color_code), bbox_inches='tight')
+		fig.savefig(data_dir + '%s/%s/%s_%s_outlineplot_%s.pdf'%(gal_name, run_name, gal_name, sc_class, color_code), bbox_inches='tight')
+	
 	else:
-		f.save(data_dir + '%s/%s_%s_outlineplot.png'%(gal_name, gal_name, sc_class))
-		f.save(data_dir + '%s/%s_%s_outlineplot.pdf'%(gal_name, gal_name, sc_class))
+		
+		f.save(data_dir + '%s/%s/%s_%s_outlineplot.png'%(gal_name, run_name, gal_name, sc_class))
+		f.save(data_dir + '%s/%s/%s_%s_outlineplot.pdf'%(gal_name, run_name, gal_name, sc_class))
 
 
 	plt.close()
 
 
-def all_galaxies_outline_plots(galaxy_list, data_dir, sc_class='class12', radius=[0.04], bkgd=None, color_code=''):
-	"""
+def all_galaxies_outline_plots(galaxy_list, data_dir, run_name, sc_base_cat_suffix='_phangshst_base_catalog',
+							   gmc_cat_suffix='_12m+7m+tp_co21_nativeres_nativenoise_props', sc_class='class12', 
+							   radius=[0.04], bkgd=None, color_code=''):
+	""" loop through all the galaxies in the list and make the outline plots 
+
+	Inputs:
+	galaxy_list			astropy Table 	table that holds the list of galaxies to perform the analysis on
+	data_dir 			str 			path to the data directory; e.g., /cherokee1/turner/phangs/cf/data/
+	run_name 			str 			name of the run/test; e.g., run01
+	sc_base_cat_suffix	str 			suffix for the filename of the base star cluster catalog;
+										included here to make it easier if new cluster catalogs are generated [and the name changes i guess?]
+	gmc_cat_suffix  	str 			suffix for the filename of the gmc catalog; defaults to the latest gmc catalog
+	sc_class 			str 			which class clusters will be plotted? 'class12' or 'class123'; default is class12
+	radius 				list 			list same length as galaxy_list which has radius of the image view in degrees; default is 0.04
+	bkgd 				str 			if you want the trilogy 3-color image as background image, put 'trilogy' otherwise default is None
+	color_code 			str 			if you want to color code the data points by age, put 'age', if by mass, put 'mass'; default is nothing so nothing color-coded
 
 	"""
 	gal_id 		= galaxy_list['id']
-	gal_alt_id 	= galaxy_list['alt_id']
 	gal_dist 	= galaxy_list['dist']
 	gal_ra		= galaxy_list['center_ra']
 	gal_dec 	= galaxy_list['center_dec']
@@ -643,18 +695,20 @@ def all_galaxies_outline_plots(galaxy_list, data_dir, sc_class='class12', radius
 	for i in range(len(galaxy_list)):
 
 		gal_name = gal_id[i]
-		gal_alt_name = gal_alt_id[i]
 		center_deg = (gal_ra[i], gal_dec[i])
-
 		print('')
 		print(gal_name)
 
+		# check if the run_name directory exists and if not, create it
+		if not os.path.exists(data_dir + '%s/%s'%(gal_name, run_name)):
+			os.makedirs(data_dir + '%s/%s'%(gal_name, run_name))
+
 		# read in the correct cluster catalog
 		if 'class12' in sc_class:
-			sc_cat = fits.open(data_dir + '%s/hst/%s_phangshst_base_catalog.%s.fits'%(gal_name, gal_name, sc_class))[1].data
+			sc_cat = fits.open(data_dir + '%s/%s/%s%s.%s.fits'%(gal_name,run_name,gal_name,sc_base_cat_suffix,sc_class))[1].data
 		else:
 			# default to the class 1,2 catalog
-			sc_cat = fits.open(data_dir + '%s/hst/%s_phangshst_base_catalog.class12.fits'%(gal_name, gal_name))[1].data
+			sc_cat = fits.open(data_dir + '%s/%s/%s%s.class12.fits'%(gal_name,run_name,gal_name,sc_base_cat_suffix))[1].data
 
 		# create dictionary containing the star cluster coordinates to feed to the outline_plot function
 		# positions
@@ -675,8 +729,7 @@ def all_galaxies_outline_plots(galaxy_list, data_dir, sc_class='class12', radius
 		else:
 			color_input = []
 
-
-		outline_plot(gal_name, data_dir, sc_coord_dict, center_deg, sc_class=sc_class, radius=gal_plot_radius, bkgd=bkgd, color_arr=color_input, color_code=color_code )
+		outline_plot(gal_name, data_dir, run_name, gmc_cat_suffix, sc_base_cat_suffix, sc_coord_dict, center_deg, sc_class=sc_class, radius=gal_plot_radius, bkgd=bkgd, color_arr=color_input, color_code=color_code)
 
 
 ########################################################
@@ -767,11 +820,430 @@ def sc_gmc_sep_hist(sep, dist, age, filename, age_split=10, nn_label='1st', sep_
 
 	ax1.legend(loc='upper right', fontsize='small')
 
-
 	plt.savefig(filename + '.png', bbox_inches='tight')
 	plt.savefig(filename + '.pdf', bbox_inches='tight')
 	plt.close()
 
+def all_galaxies_sc_gmc_sep(galaxy_list, data_dir, run_name, mkhist=True, sc_cat_suffix='_phangshst_base_catalog.class12', 
+							gmc_cat_suffix='_12m+7m+tp_co21_nativeres_nativenoise_props', output_cat_suffix='_cluster_catalog_in_mask_class12'):
+	""" nearest-neighbor analysis by finding the separations between star clusters and gmcs
+	function version of sc_gmc_sep.py in the workflow directory
+
+	will output a new cluster catalog as as csv which contains the clusters within the overlap mask and the information about the nearest neighbor
+	gmcs (cloud number, radius, separations) and which environment the cluster lies in according to the environmental masks
+	saves to the given run_name directory within each galaxy's data dir
+	also can make histograms of the nearest neighbor separations - saves to the same directory as above
+
+	Inputs:
+	galaxy_list			astropy Table 	table that holds the list of galaxies to perform the analysis on
+	data_dir 			str 			path to the data directory; e.g., /cherokee1/turner/phangs/cf/data/
+	run_name 			str 			name of the run/test; e.g., run01
+	mkhist 				bool 			if true, then histograms of the 1st, 2nd, 3rd nearest-neighbor separations will be produced
+	sc_cat_suffix 		str 			suffix for the filename of the star cluster catalog; defaults to the class 1 and 2 catalog;
+										included here to make it easier to do the runs with class 1,2,3 and the associations
+	gmc_cat_suffix  	str 			suffix for the filename of the gmc catalog; defaults to the latest gmc catalog
+	output_cat_suffix 	str 			suffix for the filename of the output star cluster catalog which has the new cluster catalog;
+										defaults to the class 1,2 name
+	"""
+	# read in the galaxy list
+	gal_id 		= galaxy_list['id']
+	gal_dist 	= galaxy_list['dist']
+
+	# loop through all the galaxies in the list
+	for i in range(len(galaxy_list)):
+
+		# galaxy props
+		gal_name = gal_id[i]
+		dist = gal_dist[i]
+		print('')
+		print(gal_name)
+
+		# check if the run_name directory exists and if not, create it
+		if not os.path.exists(data_dir + '%s/%s'%(gal_name, run_name)):
+			os.makedirs(data_dir + '%s/%s'%(gal_name, run_name))
+
+		# read in star cluster catalog
+		sc_cat = fits.open(data_dir + '%s/hst/%s%s.fits'%(gal_name, gal_name, sc_cat_suffix))[1].data
+
+		# grab star cluster positions
+		sc_x, sc_y,   = sc_cat['PHANGS_X'], sc_cat['PHANGS_Y']
+		sc_ra, sc_dec = sc_cat['PHANGS_RA'], sc_cat['PHANGS_DEC']
+		# grab star cluster ages
+		sc_age = sc_cat['PHANGS_AGE_MINCHISQ']
+
+		# read in GMC catalog 
+		gmc_cat = fits.open(data_dir + '%s/alma/%s%s.fits'%(gal_name, gal_name, gmc_cat_suffix))[1].data
+
+		# not sure why but some of the GMCs have nan radius so we drop those from the catalog
+		wnanrad = np.where(np.isnan(gmc_cat['RAD3D_PC']))[0]
+		gmc_cat = np.delete(gmc_cat, wnanrad)
+
+		# grab center positions of the GMCs 
+		gmc_ra, gmc_dec = gmc_cat['XCTR_DEG'], gmc_cat['YCTR_DEG']
+
+		# read in the overlap mask
+		mask_hdu = fits.open(data_dir + '%s/%s_hst_alma_overlap_mask.fits'%(gal_name, gal_name))
+		mask = mask_hdu[0].data
+		mask_header = mask_hdu[0].header
+
+		# convert star cluster x,y postions to integer pixels
+		sc_x_int = np.array([int(np.round(x)) for x in sc_x ])
+		sc_y_int = np.array([int(np.round(y)) for y in sc_y ])
+	
+		# check if the clusters are within the overlap mask
+		sc_in_mask = np.array([True if mask[y,x] == 1 else False for y,x in zip(sc_y_int, sc_x_int)])
+
+		# keep only clusters within the mask
+		sc_ra  = sc_ra[sc_in_mask]
+		sc_dec = sc_dec[sc_in_mask]
+		sc_x   = sc_x[sc_in_mask]
+		sc_y   = sc_y[sc_in_mask]
+
+		sc_age   = sc_age[sc_in_mask]
+		
+		sc_cat_masked   = sc_cat[sc_in_mask]
+
+		# convert to SkyCoords
+		sc_coords = SkyCoord(ra=sc_ra*u.deg, dec=sc_dec*u.deg, frame='icrs', distance=dist*u.Mpc)
+		gmc_coords = SkyCoord(ra=gmc_ra*u.deg, dec=gmc_dec*u.deg, frame='fk5', distance=dist*u.Mpc)
+
+		# get the nearest neighbor
+		nn_sep, nn_dist, idx_sc, idx_gmc = sc_gmc_sep(sc_coords, gmc_coords, nn_number=1, return_idx=True)
+	
+		# convert separation from degrees to arcsecs
+		nn_sep = (nn_sep*u.deg).to(u.arcsec).value
+	
+		# reshape the arrays
+		nn_sep  = nn_sep.reshape(len(nn_sep))
+		nn_dist = nn_dist.reshape(len(nn_dist))
+		idx_sc  = idx_sc.reshape(len(idx_sc))
+		idx_gmc = idx_gmc.reshape(len(idx_gmc))
+
+		# get nearest neighbor gmc cloudnum and radius
+		# R_3D for the cloud radius as this takes into account the galaxy scale height (assumes 100 pc) 
+		# which restricts cloud sizes within the disk of the galaxy
+		nn_gmc_cloudnum  = gmc_cat['CLOUDNUM'][idx_gmc]
+		nn_gmc_radius_pc = gmc_cat['RAD3D_PC'][idx_gmc]
+	
+		# convert gmc radius from pc to arcsec
+		nn_gmc_radius_radian = nn_gmc_radius_pc/(gal_dist[0]*1e6)
+		nn_gmc_radius_asec   = nn_gmc_radius_radian*u.rad.to(u.arcsec)
+
+		# going to make a pandas dataframe for the star clusters within the overlap mask with:
+		# ra, dec, hst_x, hst_y, alma_x, alma_y, sc_age + err, sc_mass + err, sc_ebv + err, environmental_mask_value, nn_gmc_cloudnum, nn_gmc_radius_pc + arcsec, nn_gmc_sep, nn_gmc_dist
+
+		# need the star cluster pixel positions within the ALMA maps for easy placement within the environmental masks 
+		alma_x, alma_y = get_alma_pixel_coords(sc_ra, sc_dec, gal_name, data_dir)
+
+		# read in evironmental mask
+		env_mask_hdulist = fits.open(data_dir + '%s/alma/%s_simple.fits'%(gal_name, gal_name))
+		env_mask = env_mask_hdulist[0].data 
+		env_mask_hdr = env_mask_hdulist[0].header
+
+		# wcs for the environmenal mask
+		w_env_mask = WCS(env_mask_hdr, fobj=env_mask_hdulist)
+		# convert star cluster ra, dec to pixel locations in the environ mask
+		env_mask_x, env_mask_y = w_env_mask.wcs_world2pix(sc_ra, sc_dec, 1.0)
+
+		# convert to integers
+		env_mask_x_int = np.array([np.round(x).astype(int) for x in env_mask_x])
+		env_mask_y_int = np.array([np.round(y).astype(int) for y in env_mask_y])
+	
+		sc_env_mask_val = np.array([env_mask[y, x] for y,x in zip(env_mask_y_int, env_mask_x_int) ], dtype='int')
+
+		# create dictionary with all the data which will go into the pandas dataframe
+		df_data = {'id': sc_cat_masked['ID_PHANGS_ALLSOURCES_V0_9'], 'ra': sc_ra, 'dec': sc_dec, 'hst_x': sc_x, 'hst_y': sc_y, 'alma_x': alma_x, 'alma_y': alma_y,
+				   'age': sc_cat_masked['PHANGS_AGE_MINCHISQ'], 'age_err': sc_cat_masked['PHANGS_AGE_MINCHISQ_ERR'], 
+				   'mass': sc_cat_masked['PHANGS_MASS_MINCHISQ'], 'mass_err': sc_cat_masked['PHANGS_MASS_MINCHISQ_ERR'], 
+				   'ebv': sc_cat_masked['PHANGS_EBV_MINCHISQ'], 'ebv_err': sc_cat_masked['PHANGS_EBV_MINCHISQ_ERR'],
+				   'env_mask_val': sc_env_mask_val, 'nn_cloudnum': nn_gmc_cloudnum, 'nn_gmc_radius_pc': nn_gmc_radius_pc, 'nn_gmc_radius_asec': nn_gmc_radius_asec, 
+				   'nn_sep_asec': nn_sep, 'nn_dist_pc': nn_dist }
+		
+		sc_df = Table(df_data).to_pandas()
+	
+		# output to a csv for easy manipulating later on
+		sc_df.to_csv(data_dir + '%s/%s/%s%s.csv'%(gal_name, run_name, gal_name, output_cat_suffix), index=False)
+
+		if mkhist:
+			
+			# get the 3 nearest neighbor separations and distances 
+			nn3_sep, nn3_dist = sc_gmc_sep(sc_coords, gmc_coords, nn_number=3)
+
+			# convert separation to arcsecs
+			nn3_sep = (nn3_sep*u.deg).to(u.arcsec).value
+
+			# histogram for 1st nearest neighbor
+			filename = data_dir + '%s/%s/%s_sc_gmc_1nn_hist'%(gal_name, run_name, gal_name)
+			sc_gmc_sep_hist(nn3_sep[:,0], nn3_dist[:,0], age=sc_age, filename=filename, age_split=10, nn_label='1st', sep_unit='arcsec', bins=10, lw=2.5, edgecolor='black')
+			# histogram for 2nd nearest neighbor
+			filename = data_dir + '%s/%s/%s_sc_gmc_2nn_hist'%(gal_name, run_name, gal_name)
+			sc_gmc_sep_hist(nn3_sep[:,1], nn3_dist[:,1], age=sc_age, filename=filename, age_split=10, nn_label='2nd', sep_unit='arcsec', bins=10, lw=2.5, edgecolor='black')
+			# histogram for 3rd nearest neighbor
+			filename = data_dir + '%s/%s/%s_sc_gmc_3nn_hist'%(gal_name, run_name, gal_name)
+			sc_gmc_sep_hist(nn3_sep[:,2], nn3_dist[:,2], age=sc_age, filename=filename, age_split=10, nn_label='3rd', sep_unit='arcsec', bins=10, lw=2.5, edgecolor='black')
+
+def bootstrap_median_error(data, sigma, nbootstraps=10000):
+	"""	boostrap estimate of the error on the median of the distribution of input data and their errors/sigma
+		
+	"""
+
+	medians = np.zeros(nbootstraps)
+
+	for i in range(nbootstraps):
+
+		rand = np.random.normal(data, sigma)
+
+		medians[i] = np.median(rand)
+
+	std = np.std(medians)
+
+	return std
+
+def generate_sc_gmc_assoc_df(galaxy_list, data_dir, run_name, sc_mask_cat_suffix='_cluster_catalog_in_mask_class12', 
+							 gmc_cat_suffix='_12m+7m+tp_co21_nativeres_nativenoise_props', filename='_cluster_catalog_in_mask_class12_assoc_gmc' ):
+	""" generates the dataframe (as a csv file) which adds to the dataframe/csv generated in all_galaxies_sc_gmc_sep
+	adds columns: 
+	cloud number of the gmc of which the star cluster is associated [nan if no association]
+	the 'association number' i.e., 0 = unassociated, 1 = w/in 1 gmc rad, 2 = b/w 1 and 2 gmc rad, 3 = b/w 2 and 3 gmc rad
+
+	Inputs:
+	galaxy_list			astropy Table 	table that holds the list of galaxies to perform the analysis on
+	data_dir 			str 			path to the data directory; e.g., /cherokee1/turner/phangs/cf/data/
+	run_name 			str 			name of the run/test; e.g., run01
+	sc_mask_cat_suffix	str 			suffix for the filename of the star cluster within the overlap mask catalog; defaults to the class 1 and 2 catalog;
+	gmc_cat_suffix  	str 			suffix for the filename of the gmc catalog; defaults to the latest gmc catalog
+	filename		 	str 			suffix for the filename of the output star cluster dataframe; defaults to the class 1,2 name
+
+	"""
+
+	gal_id 		= galaxy_list['id']
+	gal_dist 	= galaxy_list['dist']
+
+	# loop through all the galaxies in the list
+	for i in range(len(galaxy_list)):
+	
+		# galaxy props
+		gal_name = gal_id[i]
+		dist = gal_dist[i]
+		print('')
+		print(gal_name)
+
+		# check if the run_name directory exists and if not, create it
+		if not os.path.exists(data_dir + '%s/%s'%(gal_name, run_name)):
+			os.makedirs(data_dir + '%s/%s'%(gal_name, run_name))
+	
+		# read in the csv of the cluster catalog within the overlap mask
+		sc_df = pd.read_csv(data_dir + '%s/%s/%s%s.csv'%(gal_name, run_name, gal_name, sc_mask_cat_suffix))
+	
+		# read in the gmc cat
+		gmc_cat = fits.open(data_dir + '%s/alma/%s%s.fits'%(gal_name, gal_name, gmc_cat_suffix))[1].data
+	
+		# get the star cluster ra, dec
+		sc_ra, sc_dec = sc_df['ra'].to_numpy()*u.deg, sc_df['dec'].to_numpy()*u.deg
+		sc_coords = SkyCoord(sc_ra, sc_dec, frame='icrs', distance=dist*u.Mpc)
+	
+		# initialize empty lists which will keep running lists of the gmcs and associated star clusters
+		# assoc_track will keep track of the 'association number' which means:
+		# 1 = w/in 1 gmc rad, 2 = b/w 1 and 2 gmc rad, 3 = b/w 2 and 3 gmc rad
+		gmc_track = []
+		sc_track  = []
+		assoc_track = []
+	
+		# loop through all the gmcs
+		for gmc in gmc_cat:
+	
+			gmc_coord = SkyCoord(gmc['XCTR_DEG']*u.deg, gmc['YCTR_DEG']*u.deg, frame='fk5', distance=dist*u.Mpc)
+			
+			# gmc radius		
+			gmc_rad_pc = gmc['RAD_PC']
+			# convert gmc radius in pc to arcsec
+			gmc_rad_rad  = gmc_rad_pc/(dist*1e6)
+			gmc_rad_asec = gmc_rad_rad*u.rad.to(u.arcsec)
+	
+			# get separation between the gmc and all the star clusters
+			sep =  gmc_coord.separation(sc_coords).to(u.arcsec)
+			
+			# find clusters within 1 gmc radius
+			w1 = np.where( sep.value <= gmc_rad_asec)[0]
+			# find clusters between 1 and 2 gmc radius
+			w2 = np.where((sep.value <= 2*gmc_rad_asec) & (sep.value > gmc_rad_asec))[0]
+			# find clusters between 2 and 3 gmc radius
+			w3 = np.where((sep.value <= 3*gmc_rad_asec) & (sep.value > 2*gmc_rad_asec))[0]
+			
+			# check if w1 isn't empty
+			if len(w1) > 0: 
+				# loop through its contents
+				for j in range(len(w1)):
+					# keep track of the *index* of the gmc currently being used
+					gmc_track.append(gmc['CLOUDNUM'] - 1)
+					# keep track of the index of the star cluster
+					sc_track.append(w1[j])
+					# place 1 in assoc_track to signify that this cluster is within 1 gmc radius
+					assoc_track.append(1)
+			
+			# same agian but for between 1 and 2 gmc radius
+			if len(w2) > 0:
+				for j in range(len(w2)):
+					gmc_track.append(gmc['CLOUDNUM'] - 1)
+					sc_track.append(w2[j])
+					assoc_track.append(2)
+			
+			# same agian but for between 2 and 3 gmc radius
+			if len(w3) > 0: 
+				for j in range(len(w3)):
+					gmc_track.append(gmc['CLOUDNUM'] - 1)
+					sc_track.append(w3[j])
+					assoc_track.append(3)
+	
+		# make the lists numpy arrays
+		gmc_track = np.array(gmc_track)
+		sc_track = np.array(sc_track)
+		assoc_track = np.array(assoc_track)
+	
+		# star cluster can only be associated with a single gmc so
+		# we look for duplicates of the star clusters found associated with the GMCs
+		# using the counts given by np.unique
+		uniq, c = np.unique(sc_track, return_counts=True)
+	
+		# duplicate star clusters are where the counts are greater than 1
+		wdup = np.where(c > 1)[0]
+		
+		# loop through the dupilcate star clusters
+		for sc_idx in uniq[wdup]:
+	
+			# get the index within sc_track where the duplicate is found
+			w_sc_dup = np.where(sc_track == sc_idx)[0]
+			# get the indices of the gmcs (within gmc_cat) of the multiple gmcs associated with the single star cluster
+			wgmc = gmc_track[w_sc_dup]
+			# find which of these gmcs is the most massive
+			wmassmax = np.argmax(gmc_cat['MLUM_MSUN'][wgmc])
+	
+			# drop the most massive gmc from the list of duplicates
+			w_sc_dup = np.delete(w_sc_dup, wmassmax)
+	
+			# then delete the duplicates from the arrays
+			gmc_track = np.delete(gmc_track, w_sc_dup)
+			sc_track = np.delete(sc_track, w_sc_dup)
+			assoc_track = np.delete(assoc_track, w_sc_dup)
+		
+		# make a copy of the dataframe
+		sc_df2 = sc_df.copy()
+	
+		# column with the gmc cloudnum of which the star cluster is associated
+		# star clusters unassociated with a gmc will be set to nan
+		assoc_gmc_cloudnum = np.zeros(len(sc_df2)) + np.nan
+		assoc_gmc_cloudnum[sc_track] = gmc_cat['CLOUDNUM'][gmc_track]
+	
+		# column with the association number 
+		# 0 = unassociated, 1 = w/in 1 gmc rad, 2 = b/w 1 and 2 gmc rad, 3 = b/w 2 and 3 gmc rad
+		assoc_num = np.zeros(len(sc_df2))
+		assoc_num[sc_track] = assoc_track
+	
+		# insert those new columns
+		sc_df2['assoc_gmc_cloudnum'] = assoc_gmc_cloudnum
+		sc_df2['assoc_num'] = assoc_num
+	
+		# output to csv file
+		sc_df2.to_csv(data_dir + '%s/%s/%s%s.csv'%(gal_name, run_name, gal_name, filename), index=False)
+
+
+def make_sc_gmc_assoc_hists(galaxy_list, data_dir, run_name, assoc_cat_suffix='_cluster_catalog_in_mask_class12_assoc_gmc', 
+							plot_errorbars=False):
+	""" loop through all the galaxies and make the histograms of the cluster ages with their gmc associations
+
+	"""
+
+	gal_id 		= galaxy_list['id']
+	gal_dist 	= galaxy_list['dist']
+	
+	for i in range(len(galaxy_list)):
+
+		# galaxy props
+		gal_name = gal_id[i]
+		dist = gal_dist[i]
+		print('')
+		print(gal_name)
+
+		# read in the invidual galaxy dataframe rather than using the mega
+		df = pd.read_csv(data_dir + '%s/%s/%s%s.csv'%(gal_name, run_name, gal_name, assoc_cat_suffix))
+
+		w0 = df['assoc_num'] == 0
+		w1 = df['assoc_num'] == 1
+		w2 = df['assoc_num'] == 2
+		w3 = df['assoc_num'] == 3
+
+		sc_gmc_assoc_hist(df, filename=data_dir+'%s/%s/%s_sc_gmc_assoc_hist'%(gal_name, run_name, gal_name), errorbars=plot_errorbars)
+
+		# star cluster ages
+		age_all = df['age'].to_numpy()
+		lage_all = np.log10(age_all)
+		age_err_all = df['age_err'].to_numpy()
+		lage_err_all = age_err_all/age_all/np.log(10)
+
+		# errors on the median ages 
+		med_age_sigma_all = bootstrap_median_error(age_all, age_err_all)
+		med_age_sigma1    = bootstrap_median_error(age_all[w1], age_err_all[w1])
+		med_age_sigma2    = bootstrap_median_error(age_all[w2], age_err_all[w2])
+		med_age_sigma3    = bootstrap_median_error(age_all[w3], age_err_all[w3])
+		med_age_sigma0    = bootstrap_median_error(age_all[w0], age_err_all[w0])
+
+		# log the stats for each galaxy
+		if i == 0:
+			f = open(data_dir + 'sc_gmc_assoc_stats.%s.txt'%run_name, 'w')
+			f.write(gal_name + '\n')
+			f.write('All star clusters median age: %.2f +/- %.2f Myr \n'%(np.median(age_all), med_age_sigma_all))
+			f.write('Within 1 R_gmc median age:    %.2f +/- %.2f Myr \n'%(np.median(age_all[w1]), med_age_sigma1))
+			f.write('1 < R_gmc <= 2 median age:    %.2f +/- %.2f Myr \n'%(np.median(age_all[w2]), med_age_sigma2))
+			f.write('2 < R_gmc <= 3 median age:    %.2f +/- %.2f Myr \n'%(np.median(age_all[w3]), med_age_sigma3))
+			f.write('Unassociated median age:      %.2f +/- %.2f Myr \n'%(np.median(age_all[w0]), med_age_sigma0))
+			f.write('\n')
+			f.close()
+
+		else:
+			f = open(data_dir + 'sc_gmc_assoc_stats.%s.txt'%run_name, 'a')
+			f.write(gal_name + '\n')
+			f.write('All star clusters median age: %.2f +/- %.2f Myr \n'%(np.median(age_all), med_age_sigma_all))
+			f.write('Within 1 R_gmc median age:    %.2f +/- %.2f Myr \n'%(np.median(age_all[w1]), med_age_sigma1))
+			f.write('1 < R_gmc <= 2 median age:    %.2f +/- %.2f Myr \n'%(np.median(age_all[w2]), med_age_sigma2))
+			f.write('2 < R_gmc <= 3 median age:    %.2f +/- %.2f Myr \n'%(np.median(age_all[w3]), med_age_sigma3))
+			f.write('Unassociated median age:      %.2f +/- %.2f Myr \n'%(np.median(age_all[w0]), med_age_sigma0))
+			f.write('\n')
+
+			f.close()
+
+
+def generate_mega_df(galaxy_list, data_dir, run_name, assoc_cat_suffix='_cluster_catalog_in_mask_class12_assoc_gmc', output=True):
+	""" generates the 'mega df' which is a dataframe which has the star clusters (and all their nearest neighbor GMCs and GMC association info) 
+	for all the galaxies in the galaxy_list
+
+
+	"""
+	gal_id 		= galaxy_list['id']
+	gal_dist 	= galaxy_list['dist']
+
+	# loop through all the galaxies in the list
+	for i in range(len(galaxy_list)):
+
+		gal_name = gal_id[i]
+
+		# read in the csv
+		df = pd.read_csv(data_dir + '%s/%s/%s%s.csv'%(gal_name, run_name, gal_name, assoc_cat_suffix))
+
+		# need column for the galaxy name
+		gal_name_col = np.array([gal_name for i in range(len(df))])
+
+		df.insert(loc=0, column='gal_name', value=gal_name_col)
+
+		if i == 0:
+			# initialize the mega df using the first galaxy
+			mega_df = df.copy()
+		else:
+			mega_df = mega_df.append(df)
+
+	if output:
+		mega_df.to_csv(data_dir + 'sc_gmc_assoc_mega.%s.csv'%run_name, index=False)
+
+	return mega_df
 
 def sc_gmc_assoc_hist(df, filename, errorbars=False, **kwargs):
 	""" histograms of the star cluster ages based on their association with gmcs
@@ -842,21 +1314,394 @@ def sc_gmc_assoc_hist(df, filename, errorbars=False, **kwargs):
 	plt.close()
 
 
-def bootstrap_median_error(data, sigma, nbootstraps=10000):
-	"""	boostrap estimate of the error on the median of the distribution of input data and their errors/sigma
-		
+def all_galaxies_sc_gmc_assoc(galaxy_list, data_dir, run_name, sc_mask_cat_suffix='_cluster_catalog_in_mask_class12', 
+							  gmc_cat_suffix='_12m+7m+tp_co21_nativeres_nativenoise_props', sc_class='class12'):
+	""" function form of sc_gmc_assoc.py - loops through all the galaxies and find the gmcs associated with each star cluster
+
+	Inputs:
+	galaxy_list			astropy Table 	table that holds the list of galaxies to perform the analysis on
+	data_dir 			str 			path to the data directory; e.g., /cherokee1/turner/phangs/cf/data/
+	run_name 			str 			name of the run/test; e.g., run01
+	sc_cat_suffix 		str 			suffix for the filename of the star cluster catalog; defaults to the class 1 and 2 catalog;
+										included here to make it easier to do the runs with class 1,2,3 and the associations
+	gmc_cat_suffix  	str 			suffix for the filename of the gmc catalog; defaults to the latest gmc catalog
+	sc_class 			str 			which class of clusters to make the catalogs for; class12 or class123
+
+	"""
+	# do the star cluster - GMC assocation and output to a csv dataframe
+	generate_sc_gmc_assoc_df(galaxy_list, data_dir, run_name, sc_mask_cat_suffix=sc_mask_cat_suffix, gmc_cat_suffix=gmc_cat_suffix, 
+							 filename='_cluster_catalog_in_mask_%s_assoc_gmc'%sc_class)
+
+	# create the histograms of the cluster ages split by how they are associated with a gmc 
+	make_sc_gmc_assoc_hists(galaxy_list, data_dir, run_name, assoc_cat_suffix='_cluster_catalog_in_mask_%s_assoc_gmc'%sc_class, 
+							plot_errorbars=False)
+
+	# generate the 'mega df' 
+	mega_df = generate_mega_df(galaxy_list, data_dir, run_name, assoc_cat_suffix='_cluster_catalog_in_mask_%s_assoc_gmc'%sc_class, output=True)
+
+	# grab indices of the clustes for each association number
+	w0 = mega_df['assoc_num'] == 0 	# unassociated
+	w1 = mega_df['assoc_num'] == 1 	# w/in 1 gmc radius
+	w2 = mega_df['assoc_num'] == 2 	# b/w 1 and 2 gmc radii
+	w3 = mega_df['assoc_num'] == 3 	# b/w 2 and 3 gmc radii
+
+	# bootstrap estimate of the uncertainty on the median ages
+	med_age_sigma_all = bootstrap_median_error(mega_df['age'],     mega_df['age_err'] )
+	med_age_sigma0    = bootstrap_median_error(mega_df['age'][w0], mega_df['age_err'][w0] )
+	med_age_sigma1    = bootstrap_median_error(mega_df['age'][w1], mega_df['age_err'][w1] )
+	med_age_sigma2    = bootstrap_median_error(mega_df['age'][w2], mega_df['age_err'][w2] )
+	med_age_sigma3    = bootstrap_median_error(mega_df['age'][w3], mega_df['age_err'][w3] )
+
+	# print out stats
+	print('All star clusters median age: %.2f +/- %.2f Myr'%(np.median(mega_df.age), med_age_sigma_all))
+	print('1 Rgmc median age: %.2f +/- %.2f'%(mega_df.loc[w1].median()['age'], med_age_sigma1))
+	print('1 - 2 Rgmc median age: %.2f +/- %.2f'%(mega_df.loc[w2].median()['age'], med_age_sigma2))
+	print('2 - 3 Rgmc median age: %.2f +/- %.2f'%(mega_df.loc[w3].median()['age'], med_age_sigma3))
+	print('Unassoc median age: %.2f+/- %.2f'%(mega_df.loc[w0].median()['age'], med_age_sigma0))
+
+	# append the stats across all galaxies 
+	f = open(data_dir + 'sc_gmc_assoc_stats.%s.txt'%run_name, 'a')
+	f.write('All Galaxies\n')
+	f.write('All star clusters median age: %.2f +/- %.2f Myr \n'%(np.median(mega_df.age), med_age_sigma_all))
+	f.write('Within 1 R_gmc median age:    %.2f +/- %.2f Myr \n'%(np.median(mega_df[w1].age), med_age_sigma1))
+	f.write('1 < R_gmc <= 2 median age:    %.2f +/- %.2f Myr \n'%(np.median(mega_df[w2].age), med_age_sigma2))
+	f.write('2 < R_gmc <= 3 median age:    %.2f +/- %.2f Myr \n'%(np.median(mega_df[w3].age), med_age_sigma3))
+	f.write('Unassociated median age:      %.2f +/- %.2f Myr \n'%(np.median(mega_df[w0].age), med_age_sigma0))
+	f.write('\n')
+	f.close()
+
+	"""	now do things by environmental mask locations 
+
+	simple environmental masks cheatsheet
+	1 = center (small bulge, nuclear ring & disk)
+	2 = bar (excluding bar ends)
+	3 = bar ends (overlap of bar and spiral)
+	4 =​ interbar (R_gal < R_bar, but outside bar footprint)
+	5 = ​spiral arms inside interbar (R_gal < R_bar)
+	6 = ​spiral arms (R_gal > R_bar)
+	7 =​ interarm (only the R_gal spanned by spiral arms, and R_gal > R_bar)
+	8 = ​outer disc (R_gal > spiral arm ends, only for galaxies with identified spirals)
+	9 = ​disc (R_gal > R_bar) where no spiral arms were identified (e.g. flocculent spirals)
+
+	simplified further
+	1 =​ center
+	2 + 3 =​ bar
+	4 + 7 + 8 =​ interarm
+	5 + 6 =​ spiral arms
+	9 =​ disc in galaxies without spirals
+	
+	"""
+	# get indices for the clusters of each enviro - need np.where so we can get mulitple conditions and can us iloc later
+	wcenter			= np.where(mega_df['env_mask_val'] == 1)
+	wbar_idx		= np.where((mega_df['env_mask_val'] == 2) | (mega_df['env_mask_val'] == 3) ) 
+	winterarm_idx	= np.where((mega_df['env_mask_val'] == 4) | (mega_df['env_mask_val'] == 7) | (mega_df['env_mask_val'] == 8))
+	wspiral_idx		= np.where((mega_df['env_mask_val'] == 5) | (mega_df['env_mask_val'] == 6))
+	wdisk			= np.where(mega_df['env_mask_val'] == 9)
+
+	# list with all the enviro indices
+	wall = [wcenter, wbar_idx[0], winterarm_idx[0], wspiral_idx[0], wdisk]
+	# list of the enviro names
+	names = ['center', 'bar', 'interarm', 'spiralarm', 'disk']
+
+	# loop through to each enviro
+	for i in range(len(wall)):
+
+		# make a temp dataframe with just the clusters of the current enviro
+		df = mega_df.iloc[wall[i]]
+
+		# make histogram of cluster ages split by association number
+		sc_gmc_assoc_hist(df, filename=data_dir+'sc_gmc_assoc_hist_%s.%s'%(names[i], run_name))
+
+		# star cluster ages and errors
+		age_all = df['age'].to_numpy()
+		lage_all = np.log10(age_all)
+		age_err_all = df['age_err'].to_numpy()
+		lage_err_all = age_err_all/age_all/np.log(10)
+
+		# indices for each association number
+		w0 = df['assoc_num'] == 0
+		w1 = df['assoc_num'] == 1
+		w2 = df['assoc_num'] == 2
+		w3 = df['assoc_num'] == 3
+
+		# bootstrap errors on the median ages
+		med_age_sigma_all = bootstrap_median_error(age_all, age_err_all)
+		med_age_sigma1    = bootstrap_median_error(age_all[w1], age_err_all[w1])
+		med_age_sigma2    = bootstrap_median_error(age_all[w2], age_err_all[w2])
+		med_age_sigma3    = bootstrap_median_error(age_all[w3], age_err_all[w3])
+		med_age_sigma0    = bootstrap_median_error(age_all[w0], age_err_all[w0])
+
+		# log the stats for each env
+		if i == 0:
+			f = open(data_dir + 'sc_gmc_assoc_stats_env.%s.txt'%run_name, 'w')
+			f.write(names[i] + '\n')
+			f.write('All star clusters median age: %.2f +/- %.2f Myr \n'%(np.median(age_all), med_age_sigma_all) )
+			f.write('Within 1 R_gmc median age:    %.2f +/- %.2f Myr \n'%(np.median(age_all[w1]), med_age_sigma1 ) )
+			f.write('1 < R_gmc <= 2 median age:    %.2f +/- %.2f Myr \n'%(np.median(age_all[w2]), med_age_sigma2 ) )
+			f.write('2 < R_gmc <= 3 median age:    %.2f +/- %.2f Myr \n'%(np.median(age_all[w3]), med_age_sigma3 ) )
+			f.write('Unassociated median age:      %.2f +/- %.2f Myr \n'%(np.median(age_all[w0]), med_age_sigma0 ) )
+			f.write('\n')
+			f.close()
+		else:
+			f = open(data_dir + 'sc_gmc_assoc_stats_env.%s.txt'%run_name, 'a')
+			f.write(names[i] + '\n')
+			f.write('All star clusters median age: %.2f +/- %.2f Myr \n'%(np.median(age_all), med_age_sigma_all) )
+			f.write('Within 1 R_gmc median age:    %.2f +/- %.2f Myr \n'%(np.median(age_all[w1]), med_age_sigma1 ) )
+			f.write('1 < R_gmc <= 2 median age:    %.2f +/- %.2f Myr \n'%(np.median(age_all[w2]), med_age_sigma2 ) )
+			f.write('2 < R_gmc <= 3 median age:    %.2f +/- %.2f Myr \n'%(np.median(age_all[w3]), med_age_sigma3 ) )
+			f.write('Unassociated median age:      %.2f +/- %.2f Myr \n'%(np.median(age_all[w0]), med_age_sigma0 ) )
+			f.write('\n')
+			f.close()
+
+def auto_corr(df, min_bin=1.1e-5, nbins=10, nbootstraps=50, method='landy-szalay', rseed=222, gmc=False):
+	""" function to calculate the auto-correlation for the given dataframe
+	uses the astroML function bootstrap_two_point_angular 
+
+	Inputs:
+	df 			pandas DataFrame 	dataframe which holds the objects to do the correlation function for
+	min_bin 	float 				the angular location of the first/minimum bin
+	nbins 		int 				the number of radial bins over which to do the correlation
+	nbootstraps int 				number of bootstraps to perform for the error estimation; default is 50
+	method 		str 				estimator method to use for correlation function; landy-szalay or standard; default is landy-szalay
+	rseed 		int 				the seed value which gets used for the numpy.random
+	gmc 		bool 				set to true if the df used is the GMC catalog since it has different keywords for ra,dec
+
+	Outputs:
+	results
+		results[0] == bins 			list of the bin edges; len(bins) == nbins + 1
+		results[1] == corr 			list of the correlation values for each bin
+		results[2] == corr_err 		list of the bootstrap estimated errors on the correlation values
+		results[3] == bootstraps 	list of lists of bootstrapped correlation values in each bin; len(bootstraps) == nbootstraps
+
+	""" 
+	np.random.seed(rseed)
+
+	bins = 10 ** np.linspace(np.log10(min_bin), np.log10(0.1), nbins+1)
+	results = [bins]
+
+	if gmc:
+		results += bootstrap_two_point_angular(df['XCTR_DEG'], df['YCTR_DEG'], bins=bins, method=method, Nbootstraps=nbootstraps)
+
+	else:
+		results += bootstrap_two_point_angular(df['ra'], df['dec'], bins=bins, method=method, Nbootstraps=nbootstraps)
+
+	return results
+
+def powerlaw_func(theta, Aw, alpha):
+	return Aw * theta**alpha
+
+def tpcf(df, dist, **kwargs):
+	""" runs the bootstrap two point corrrelation function and the power law fit
+
+	Inputs:
+	df 		pandas DataFrame 	dataframe which holds the objects to do the correlation function for
+	dist 	float 				distance to galaxy in Mpc
+	kwargs 	dictionary			keyword arguments to pass on to the auto_corr function
+
+	Outputs:
+	bins_centers_pc 	list 	center positions of the bins in parsecs 
+	corr 				list 	correlation values for each bin; 1 + omega(theta)
+	corr_err 			list   	bootstrap estimated errors on the correlation values
+	power_law_fits 		list 	the best-fit for powerlaws; [A_w (deg), error, A_w (pc), error, alpha, error ]
+
+
+	"""
+	# perform the auto-correlation
+	bins, corr, corr_err, bootstraps = auto_corr(df, **kwargs)
+	
+	# find bin centers [degrees]
+	bin_centers = 0.5 * (bins[1:] + bins[:-1])
+	# bin centers as in pc
+	bin_centers_pc = dist*1e6 * bin_centers*u.deg.to(u.rad) 
+
+	# add 1 so the correlation is 1 + omega(theta)
+	corr = corr + 1
+
+	# need to drop nans for the power law fitting
+	wnnan = np.where(np.isnan(corr)==False)
+
+	# power-law fit
+	popt_ang, pcov = curve_fit(powerlaw_func, bin_centers[wnnan], corr[wnnan])
+	perr_ang 	   = np.sqrt(np.diag(pcov))
+	popt_pc, pcov  = curve_fit(powerlaw_func, bin_centers_pc[wnnan], corr[wnnan])
+	perr_pc 	   = np.sqrt(np.diag(pcov))
+
+	# sometimes the error doesn't converge so replace those with 0 (instead of inf)
+	winf = np.where(np.isinf(perr_ang))[0]
+	if len(winf) > 0:
+		perr_ang[winf] = 0
+		perr_pc[winf] = 0
+
+	return bin_centers_pc, corr, corr_err, [popt_ang[0], perr_ang[0], popt_pc[0], perr_pc[0], popt_ang[1], perr_ang[1]]
+
+def all_galaxies_tpcf(galaxy_list, data_dir, run_name, assoc_cat_suffix='_cluster_catalog_in_mask_class12_assoc_gmc', sc_class='class12', nbins=10 ):
+	""" function form of tpcf.py - loop through all the galaxies and do the two-point correlation function analysis
+	
+	Inputs:
+	galaxy_list			astropy Table 	table that holds the list of galaxies to perform the analysis on
+	data_dir 			str 			path to the data directory; e.g., /cherokee1/turner/phangs/cf/data/
+	run_name 			str 			name of the run/test; e.g., run01
+	assoc_cat_suffix 	str 			suffix of the filename for the csv which holds the star cluster - gmc association dataframe
+	sc_class 			str 			which class of clusters to make the catalogs for; class12 or class123
+	nbins 				int; list		the number of radial bins over which to do the correlation; if a list, it'll loop through all the given nbsins
+
+
 	"""
 
-	medians = np.zeros(nbootstraps)
+	gal_id 		= galaxy_list['id']
+	gal_dist 	= galaxy_list['dist']
 
-	for i in range(nbootstraps):
+	for i in range(len(galaxy_list)):
 
-		rand = np.random.normal(data, sigma)
+		# galaxy props
+		gal_name = gal_id[i]
+		dist = gal_dist[i]
+		print('')
+		print(gal_name)
 
-		medians[i] = np.median(rand)
+		# read in the star cluster cat in the hst-alma footprint overlap mask
+		sc_df = pd.read_csv(data_dir + '%s/%s/%s%s.csv'%(gal_name, run_name, gal_name, assoc_cat_suffix))
 
-	std = np.std(medians)
+		# read in the gmc cat in the hst-alma footprint overlap mask
+		gmc_cat = fits.open(data_dir + '%s/%s/%s_gmc_cat_masked.fits'%(gal_name, run_name, gal_name))[1].data
+		gmc_df = Table(gmc_cat).to_pandas()
 
-	return std
+		# check if nbins is a list or int; if int, make it a list of len 1
+		if type(nbins) == int:
+			nbins = [nbins]
+		
+		# loop through the nbins in the list
+		for j in range(len(nbins)):
+
+			# two-point correlation function on the all the star clusters
+			bin_centers_pc_all, corr_all, corr_err_all, pl_fit_all = tpcf(sc_df, dist, nbins=nbins[j])
+
+			# now for clusters <= 10 Myr
+			wleq10 = sc_df['age'] <= 10
+			bin_centers_pc_young, corr_young, corr_err_young, pl_fit_young = tpcf(sc_df.loc[wleq10], dist, nbins=nbins[j])
+
+			# now for clusters > 10 Myr
+			w10 = sc_df['age'] > 10
+			bin_centers_pc_old, corr_old, corr_err_old, pl_fit_old = tpcf(sc_df.loc[w10], dist, nbins=nbins[j])
+
+			# now gmcs
+			bin_centers_pc_gmc, corr_gmc, corr_err_gmc, pl_fit_gmc = tpcf(gmc_df, dist, nbins=nbins[j], min_bin=3e-4, gmc=True)
+
+			# write out the power-law best fit parameters for all, young, old
+			f = open(data_dir + '%s/%s/%s_tpcf_fits.nbins%02d.dat'%(gal_name, run_name, gal_name, nbins[j]), 'w')
+
+			f.write('{:<6}  '.format('# bin'))
+			f.write('{:<6}  '.format('Aw_deg'))
+			f.write('{:<5}  '.format('error'))
+			f.write('{:<6}  '.format('Aw_pc'))
+			f.write('{:<6}  '.format('error'))
+			f.write('{:<6}  '.format('alpha'))
+			f.write('{:<5}  '.format('error'))
+			f.write('\n')
+
+			f.write('{:<6}  '.format('all'))
+			f.write('{:>6}  '.format('%.3f'%(pl_fit_all[0])))
+			f.write('{:>5}  '.format('%.3f'%(pl_fit_all[1])))
+			f.write('{:>6}  '.format('%.3f'%(pl_fit_all[2])))
+			f.write('{:>6}  '.format('%.3f'%(pl_fit_all[3])))
+			f.write('{:>6}  '.format('%.3f'%(pl_fit_all[4])))
+			f.write('{:>5}  '.format('%.3f'%(pl_fit_all[5])))
+			f.write('\n')
+
+			f.write('{:<6}  '.format('<= 10'))
+			f.write('{:>6}  '.format('%.3f'%(pl_fit_young[0])))
+			f.write('{:>5}  '.format('%.3f'%(pl_fit_young[1])))
+			f.write('{:>6}  '.format('%.3f'%(pl_fit_young[2])))
+			f.write('{:>6}  '.format('%.3f'%(pl_fit_young[3])))
+			f.write('{:>6}  '.format('%.3f'%(pl_fit_young[4])))
+			f.write('{:>5}  '.format('%.3f'%(pl_fit_young[5])))
+			f.write('\n')
+
+			f.write('{:<6}  '.format('> 10'))
+			f.write('{:>6}  '.format('%.3f'%(pl_fit_old[0])))
+			f.write('{:>5}  '.format('%.3f'%(pl_fit_old[1])))
+			f.write('{:>6}  '.format('%.3f'%(pl_fit_old[2])))
+			f.write('{:>6}  '.format('%.3f'%(pl_fit_old[3])))
+			f.write('{:>6}  '.format('%.3f'%(pl_fit_old[4])))
+			f.write('{:>5}  '.format('%.3f'%(pl_fit_old[5])))
+			f.write('\n')
+
+			f.write('{:<6}  '.format('gmc'))
+			f.write('{:>6}  '.format('%.3f'%(pl_fit_gmc[0])))
+			f.write('{:>5}  '.format('%.3f'%(pl_fit_gmc[1])))
+			f.write('{:>6}  '.format('%.3f'%(pl_fit_gmc[2])))
+			f.write('{:>6}  '.format('%.3f'%(pl_fit_gmc[3])))
+			f.write('{:>6}  '.format('%.3f'%(pl_fit_gmc[4])))
+			f.write('{:>5}  '.format('%.3f'%(pl_fit_gmc[5])))
+			f.close()
+
+			# create figure
+
+			fig, ax = plt.subplots(1,1, figsize=(5,5))
+			ax.set_xscale('log')
+			ax.set_yscale('log')
+			ax.set_xlabel(r'$r$ [pc]')
+			ax.set_ylabel(r'$1 + \omega(\theta)$')
+
+			# all clusters
+			ax.errorbar(bin_centers_pc_all, corr_all, yerr=corr_err_all, fmt='k-o', ecolor='black', markersize=5, lw=1.5, 
+					label=r'All SCs $\alpha=%.2f\pm%.2f$ (%i) '%(pl_fit_all[4], pl_fit_all[5], len(sc_df)))
+			# clusters <= 10 Myr
+			ax.errorbar(bin_centers_pc_young, corr_young, yerr=corr_err_young, fmt='-o', color='#377eb8', ecolor='#377eb8', markersize=5, lw=1.5, 
+					label=r'$\leq 10$ Myr $\alpha=%.2f\pm%.2f$ (%i) '%(pl_fit_young[4], pl_fit_young[5], len(sc_df.loc[wleq10])))
+			# clusters > 10 Myr
+			ax.errorbar(bin_centers_pc_old, corr_old, yerr=corr_err_old, fmt='-o', color='#e41a1c', ecolor='#e41a1c', markersize=5, lw=1.5, 
+					label=r'$> 10$ Myr $\alpha=%.2f\pm%.2f$ (%i) '%(pl_fit_old[4], pl_fit_old[5], len(sc_df.loc[w10])))
+			# gmcs
+			ax.errorbar(bin_centers_pc_gmc, corr_gmc, yerr=corr_err_gmc, fmt='-o', color='#E68310', ecolor='#E68310', markersize=5, lw=1.5, 
+					label=r'GMCs $\alpha=%.2f\pm%.2f$ (%i) '%(pl_fit_gmc[4], pl_fit_gmc[5], len(gmc_df)))
+			# plot vertical line at mean GMC radius
+			ax.axvline(gmc_df.mean()['RAD3D_PC'], lw=1.1, c='#999999', zorder=0)
+
+			plt.legend(loc='upper right', fontsize='x-small')
+			plt.savefig(data_dir + '%s/%s/%s_tpcf.nbins%02d.png'%(gal_name, run_name, gal_name, nbins[j]), bbox_inches='tight')
+			plt.savefig(data_dir + '%s/%s/%s_tpcf.nbins%02d.pdf'%(gal_name, run_name, gal_name, nbins[j]), bbox_inches='tight')
+			plt.close()
+
+			logbins_sc  = np.log10(bin_centers_pc_all)
+			logbins_gmc = np.log10(bin_centers_pc_gmc)
 
 
+			# write out the bin centers and correlation values
+			if j == 0:
+				f = open(data_dir + '%s/%s/%s_tpcf.dat'%(gal_name, run_name, gal_name), 'w')
+				f.write('# two-point correlation function values (1 + omega(theta)); bin centers in are given in log(pc)\n')
+			else:
+				f = open(data_dir + '%s/%s/%s_tpcf.dat'%(gal_name, run_name, gal_name), 'a')
+
+			f.write('{:<8}  '.format('nbins%02d'%nbins[j]))
+			for k in range(nbins[j]):
+				f.write('{:>6}  '.format('%.3f'%(logbins_sc[k])))
+			
+			f.write('\n')
+			f.write('{:<8}  '.format('corr_all'))
+			for k in range(nbins[j]):
+				f.write('{:>6}  '.format('%.3f'%(corr_all[k])))
+
+			f.write('\n')
+			f.write('{:<8}  '.format('corr_yng'))
+			for k in range(nbins[j]):
+				f.write('{:>6}  '.format('%.3f'%(corr_young[k])))
+
+			f.write('\n')
+			f.write('{:<8}  '.format('corr_old'))
+			for k in range(nbins[j]):
+				f.write('{:>6}  '.format('%.3f'%(corr_old[k])))
+	
+			f.write('\n')
+			f.write('{:<8}  '.format('bins_gmc'))
+			for k in range(nbins[j]):
+				f.write('{:>6}  '.format('%.3f'%(logbins_gmc[k])))
+			
+			f.write('\n')
+			f.write('{:<8}  '.format('corr_gmc'))
+			for k in range(nbins[j]):
+				f.write('{:>6}  '.format('%.3f'%(corr_gmc[k])))
+
+			f.write('\n\n')
+			f.close()
