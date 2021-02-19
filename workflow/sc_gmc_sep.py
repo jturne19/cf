@@ -34,7 +34,7 @@ gal_alt_id 	= galaxy_list['alt_id']
 gal_dist 	= galaxy_list['dist']
 
 
-mkhist = False
+mkhist = True
 
 # loop through all the galaxies in the list
 for i in range(len(galaxy_list)):
@@ -55,7 +55,7 @@ for i in range(len(galaxy_list)):
 	sc_age = sc_cat['PHANGS_AGE_MINCHISQ']
 
 	# read in GMC catalog 
-	gmc_cat = fits.open(data_dir + '%s/alma/%s_12m+7m+tp_co21_native_props.fits'%(gal_name, gal_name))[1].data
+	gmc_cat = fits.open(data_dir + '%s/alma/%s_12m+7m+tp_co21_nativeres_nativenoise_props.fits'%(gal_name, gal_name))[1].data
 
 	# grab center positions of the GMCs 
 	gmc_ra, gmc_dec = gmc_cat['XCTR_DEG'], gmc_cat['YCTR_DEG']
