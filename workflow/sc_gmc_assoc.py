@@ -44,7 +44,7 @@ def generate_sc_gmc_assoc_df(galaxy_list, data_dir):
 		sc_df = pd.read_csv(data_dir + '%s/%s_cluster_catalog_in_mask_class12.csv'%(gal_name, gal_name))
 	
 		# read in the gmc cat
-		gmc_cat = fits.open(data_dir + '%s/alma/%s_12m+7m+tp_co21_native_props.fits'%(gal_name, gal_name))[1].data
+		gmc_cat = fits.open(data_dir + '%s/alma/%s_12m+7m+tp_co21_nativeres_nativenoise_props.fits'%(gal_name, gal_name))[1].data
 	
 		# get the star cluster ra, dec
 		sc_ra, sc_dec = sc_df['ra'].to_numpy()*u.deg, sc_df['dec'].to_numpy()*u.deg
