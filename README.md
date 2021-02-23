@@ -88,7 +88,7 @@ make class12_all
 ### process notes
 - newest update now allows everything to be run easily from the Makefile using the `full_run.py` 
 	- using the `Makefile` in `workflow` dir lets you perform various runs with tweaked parameters (e.g, which star cluster classes to use, number of bins to use for the two-point and cross correlation functions)
-
+---
 - generate ds9 region files for all the GMCs using `all_galaxies_gmc_region_files`
 - generate ds9 region files for all the star clusters using `all_galaxies_clust_region_files`
 - generate ds9 region files for the HST footprints using FLC files with `all_galaxies_flc_region_files`
