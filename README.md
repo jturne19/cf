@@ -65,7 +65,7 @@ PHANGS-ALMA environmental maps from Miguel Querejeta. downloaded from `PHANGS go
 
 
 ## Example Run
-to do a full run through for the class 1 and 2 star clusters and check how the number of bins affects the two-point correlation functions (`nbins_tpcf = [5, 10, 15, 20, 25]`)
+to do a full run through for the class 1 and 2 star clusters and check how the number of bins affects the two-point and cross correlation functions (`nbins_tpcf = [5, 10, 15, 20, 25]`)
 
 ```bash
 cd workflow
@@ -76,7 +76,7 @@ make class12_all
 
 | Name                 | Location  | Description |
 |----------------------|-----------|-------------|
-|`full_run.py`		   |`workflow` | allows you to run through everything from catalog setup to the tpcf; todo: add cf calls         |
+|`full_run.py`		   |`workflow` | allows you to run through everything from catalog setup to the cross-cf         |
 |`utils.py`			   |`utils`    | contains all the functions/utilities 		             |					 
 |`catalog_setup.py`	   |`workflow` | calling the functions for creating ds9 region files for everything and other 'setup' type things   |
 |`sc_gmc_sep.py`	   |`workflow` | calling the functions for finding the star cluster - gmc nearest neighbors and making histograms   |
@@ -87,7 +87,7 @@ make class12_all
 
 ### process notes
 - newest update now allows everything to be run easily from the Makefile using the `full_run.py` 
-	- using the `Makefile` in `workflow` dir lets you perform various runs with tweaked parameters (e.g, which star cluster classes to use, number of bins to use for the two-point correlation function)
+	- using the `Makefile` in `workflow` dir lets you perform various runs with tweaked parameters (e.g, which star cluster classes to use, number of bins to use for the two-point and cross correlation functions)
 
 - generate ds9 region files for all the GMCs using `all_galaxies_gmc_region_files`
 - generate ds9 region files for all the star clusters using `all_galaxies_clust_region_files`
