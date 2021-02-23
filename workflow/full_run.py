@@ -1,7 +1,7 @@
 """
 script to hopefully go through a full run with proper directory naming and what not
 
-2021-02-17
+2021-02-22
 """
 import sys
 
@@ -48,6 +48,9 @@ do_assoc = False
 # perform the two point corelation function analysis?
 do_tpcf = False
 
+# perform the cross-correlation analysis?
+do_cf = False
+
 # radius of the field of view used in the overview plots
 #   	  ngc0628 ngc1365 ngc1433 ngc1559 ngc1566 ngc1792 ngc3351 ngc3627 ngc4535 ngc4548 ngc4571
 radius = [0.04,   0.03,   0.03,   0.024,  0.03,   0.025,  0.025,  0.04,   0.025,  0.025,  0.025]
@@ -55,6 +58,9 @@ radius_no_3627 = [0.04, 0.03, 0.03, 0.024, 0.03, 0.025, 0.025, 0.025, 0.025, 0.0
 
 # set number of bins for the two-point correlation functions
 nbins_tpcf = 10
+
+# set number of bins for the cross correlation functions
+nbins_crosscf = 10
 
 # -- do not change parameters below this ---
 for arg in (sys.argv)[1:]:
@@ -149,3 +155,11 @@ if do_tpcf:
 	print('-----------------------------------------------')
 	all_galaxies_tpcf(galaxy_list, data_dir, run_name, assoc_cat_suffix='_cluster_catalog_in_mask_%s_assoc_gmc'%sc_class, sc_class=sc_class, 
 					  nbins=nbins_tpcf )
+
+if do_cf:
+
+	# two point correlation function analysis
+	print('\ncross correlation function analysis')
+	print('-----------------------------------------------')
+	all_galaxies_crosscf(galaxy_list, data_dir, run_name, assoc_cat_suffix='_cluster_catalog_in_mask_%s_assoc_gmc'%sc_class, sc_class=sc_class, 
+						 nbins=nbins_crosscf )
