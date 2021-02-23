@@ -1705,3 +1705,438 @@ def all_galaxies_tpcf(galaxy_list, data_dir, run_name, assoc_cat_suffix='_cluste
 
 			f.write('\n\n')
 			f.close()
+
+def cross_correlate(sc_df, gmc_df, rand_sc_df, rand_gmc_df, dist, nbins=16, min_bin=1.1e-5):
+	""" calculate the cross-correlation between the given star clusters and GMC with the Landy & Szalay (1993) estimator
+	makes use of astropy search_around_sky which employs kdtrees to find separations b/w objects 
+	follows the same methodology as astroML two point correlation function (https://www.astroml.org/user_guide/correlation_functions.html)
+	but modified to just use search_around_sky (so i didn't have to write the kdtree stuff since it's implemented already in search_around_sky)
+	and follows the math for doing cross-correlation rather than auto-correlation
+
+	Inputs:
+	sc_df 		pandas DataFrame 	dataframe which contains the star cluster catalog; needs to include the cluster ra, dec
+	gmc_df 		pandas DataFrame 	dataframe which contains the gmc catalog; needs to include the gmc cluster ra, dec
+	rand_sc_df 	pandas DataFrame 	dataframe which contains the random star cluster catalog over which the correlation will be compared to; needs the random cluster ra, dec
+	rand_gmc_df pandas DataFrame 	dataframe which contains the random gmc catalog over which the correlation will be compared to; needs the random gmc ra, dec
+	dist 		float 				distance to the galaxy in Mpc; needed for calculating the separations b/w clusters and gmcs in pc
+	nbins 		int 				the number of radial bins over which to do the correlation
+	min_bin 	float 				the angular location of the first/minimum bin
+
+	Outputs:
+	bins 		array 				array of the angular bin edges (degrees)
+	corr 		array 				correlation values --> 1 + omega(theta)
+
+	"""
+
+	bins = 10 ** np.linspace(np.log10(min_bin), np.log10(0.1), nbins+1)
+
+	# total numbers in the two catalogs
+	N_Dsc  = len(sc_df)
+	N_Dgmc = len(gmc_df)
+
+	N_Rsc  = len(rand_sc_df)
+	N_Rgmc = len(rand_gmc_df)
+
+	# make sky coords for all the cats
+	sc_coords  = SkyCoord(ra=sc_df['ra']*u.deg, dec=sc_df['dec']*u.deg, frame='icrs', distance=dist*u.Mpc)
+	gmc_coords = SkyCoord(ra=gmc_df['XCTR_DEG']*u.deg, dec=gmc_df['YCTR_DEG']*u.deg, frame='fk5', distance=dist*u.Mpc)
+	
+	rand_sc_coords  = SkyCoord(ra=rand_sc_df['ra']*u.deg, dec=rand_sc_df['dec']*u.deg, frame='icrs', distance=dist*u.Mpc)
+	rand_gmc_coords = SkyCoord(ra=rand_gmc_df['ra']*u.deg, dec=rand_gmc_df['dec']*u.deg, frame='icrs', distance=dist*u.Mpc)
+
+	# get separations for all pairs 
+	DscDgmc_sas = search_around_sky(sc_coords, gmc_coords, seplimit=5*u.deg)
+	DscRgmc_sas = search_around_sky(sc_coords, rand_gmc_coords, seplimit=5*u.deg)
+	RscDgmc_sas = search_around_sky(rand_sc_coords, gmc_coords, seplimit=5*u.deg)
+	RscRgmc_sas = search_around_sky(rand_sc_coords, rand_gmc_coords, seplimit=5*u.deg)
+
+	DscDgmc_sep = DscDgmc_sas[2]
+	DscRgmc_sep = DscRgmc_sas[2]
+	RscDgmc_sep = RscDgmc_sas[2]
+	RscRgmc_sep = RscRgmc_sas[2]
+
+	# loop through bins [drop first bin/min_bin]
+	lbins = bins[1:] * u.deg
+
+	corr = []
+	for j in range(len(lbins)):
+
+		if j == 0:
+			wDDr = np.where((DscDgmc_sep >= min_bin*u.deg) & (DscDgmc_sep < lbins[j]) )[0]
+			wDRr = np.where((DscRgmc_sep >= min_bin*u.deg) & (DscRgmc_sep < lbins[j]) )[0]
+			wRDr = np.where((RscDgmc_sep >= min_bin*u.deg) & (RscDgmc_sep < lbins[j]) )[0]
+			wRRr = np.where((RscRgmc_sep >= min_bin*u.deg) & (RscRgmc_sep < lbins[j]) )[0]
+
+		else:
+			wDDr = np.where((DscDgmc_sep >= lbins[j-1]) & (DscDgmc_sep < lbins[j]) )[0]
+			wDRr = np.where((DscRgmc_sep >= lbins[j-1]) & (DscRgmc_sep < lbins[j]) )[0]
+			wRDr = np.where((RscDgmc_sep >= lbins[j-1]) & (RscDgmc_sep < lbins[j]) )[0]
+			wRRr = np.where((RscRgmc_sep >= lbins[j-1]) & (RscRgmc_sep < lbins[j]) )[0]
+
+		# check for empty RR, and replace with nan if needed
+		if len(wRRr) == 0:
+			corr.append(np.nan)
+		else:
+			factor1 = (N_Rsc * N_Rgmc * len(wDDr))/(N_Dsc * N_Dgmc * len(wRRr))
+			factor2 = (N_Rsc * len(wDRr))/(N_Dsc * len(wRRr))
+			factor3 = (N_Rgmc * len(wRDr))/(N_Dgmc * len(wRRr))
+	
+			xi_r = factor1 - factor2 - factor3 + 1
+	
+			corr.append(xi_r)
+
+
+	corr = np.array(corr) + 1
+
+	return bins, corr
+
+def cross_correlate_bootstrap(sc_df, gmc_df, wcs_hst, xmax_hst, ymax_hst, wcs_alma, xmax_alma, ymax_alma, mask, dist, nbootstraps=100, **kwargs):
+	""" run the cross-correlation with a non-parametric bootstrap estimation of the errors on the correlation values
+	calls on the cross_correlate function above but runs through the given number of bootstraps and returns an estimation of the error
+
+	bootstrap estimation is done by randomly resampling the star cluster and gmc catalogs and then recalculating the correlation over
+	a new random cluster and gmc catalog
+	the correlation value (1 + omega(theta)) is saved for each bin for each bootstrap run
+	and error is estimated as the standard deviation (with ddof = 1) of the correlation values in each bin
+
+	Inputs:
+	sc_df 			pandas DataFrame 		dataframe which contains the star cluster catalog; needs to include the cluster ra, dec
+	gmc_df 			pandas DataFrame 		dataframe which contains the gmc catalog; needs to include the gmc cluster ra, dec
+	wcs_hst 		astropy.wcs.wcs.WCS 	astropy wcs object of the hst image
+	xmax_hst 		int 					the maximum pixel location in the x-direction of the hst image; i.e., if hst image is 13000x14000 pixels, xmax_hst = 13000
+	ymax_hst 		int 					the maximum pixel location in the y-direction of the hst image; i.e., if hst image is 13000x14000 pixels, ymax_hst = 14000
+	wcs_alma 		astropy.wcs.wcs.WCS 	astropy wcs object of the alma image
+	xmax_alma 		int 					the maximum pixel location in the x-direction of the alma image; i.e., if alma image is 1599x1598 pixels, xmax_alma = 1599
+	ymax_alma		int 					the maximum pixel location in the y-direction of the alma image; i.e., if alma image is 1599x1598 pixels, ymax_alma = 1598
+	mask 			array 					the data array of the hst-alma overlap mask image
+	dist 			float 					distance to the galaxy in Mpc; needed for calculating the separations b/w clusters and gmcs in pc
+	nbootstraps 	int 					number of bootstraps to run through
+	**kwargs 		dict 					keyword arguments to pass on to the cross_correlate funciton; really just nbins and min_bin
+
+	Outputs:
+	bins_centers_pc	array 					centers of the bins in parsecs
+	corr 			array 					correlation values in each bin --> 1 + omega(theta)
+	corr_err 		array 					1 sigma error on the correlation values; if correlation is nan, error will be 0
+	power_law_fits 	list 				 	the best-fit for powerlaws; [A_w (deg), error, A_w (pc), error, alpha, error ]
+	
+	"""
+
+	bootstraps = []
+
+	for i in range(nbootstraps):
+
+		# generate random star cluster and gmc catalogs
+		rand_sc_df  = generate_random_sc(sc_df, xmax_hst, ymax_hst, wcs_hst, mask)
+		rand_gmc_df = generate_random_gmc(gmc_df, xmax_alma, ymax_alma, wcs_alma, wcs_hst, mask)
+
+		# random resampling of the data (sc and gmcs) unless its the first time through
+		# then just run the original data
+		if i > 0:
+		
+			rand_sc_ind  = np.random.randint(0, len(sc_df), len(sc_df) )
+			rand_gmc_ind = np.random.randint(0, len(gmc_df), len(gmc_df) )
+
+			sc_boot  = sc_df.iloc[rand_sc_ind]
+			gmc_boot = gmc_df.iloc[rand_gmc_ind]
+
+		else:
+
+			sc_boot = sc_df
+			gmc_boot = gmc_df
+
+		# run cross-correlation; bins won't change through out the bootstraps so it's ok to overwrite but we do want to return it later
+		bins, corr = cross_correlate(sc_boot, gmc_boot, rand_sc_df, rand_gmc_df, dist, **kwargs)
+
+		# save the correlation array from each bootstrap
+		bootstraps.append(corr)
+
+	# since the first one of the bootstraps was the original data, this is the correlation to return
+	corr = bootstraps[0]
+
+	# since there are nans in the correlation results, we mask them out and comput the standard deviations in each bin 
+	# delta degree of freedom = 1 because the bootstraps are computed from a random sample of the population
+	# bins with nan correlation will be given 0 for the error on the correlation
+	corr_err = np.asarray(np.ma.masked_invalid(bootstraps).std(0, ddof=1))
+
+	# get centers of bins [degrees]
+	bin_centers = 0.5 * (bins[1:] + bins[:-1])
+	# bin centers in parsec
+	bin_centers_pc = dist*1e6 * bin_centers*u.deg.to(u.rad)
+
+	# will need to drop nans for power law fitting
+	wnnan = np.where(np.isnan(corr) == False)
+
+	try:
+		# power-law fit
+		popt_ang, pcov = curve_fit(powerlaw_func, bin_centers[wnnan], corr[wnnan])
+		perr_ang 	   = np.sqrt(np.diag(pcov))
+		popt_pc, pcov  = curve_fit(powerlaw_func, bin_centers_pc[wnnan], corr[wnnan])
+		perr_pc 	   = np.sqrt(np.diag(pcov))
+	except:
+		print('\ncross correlation power law fit for nbins = %i'%(len(bin_centers)))
+
+		popt_ang	= [0,0]
+		perr_ang	= [0,0]
+		popt_pc		= [0,0]
+		perr_pc		= [0,0]
+		popt_ang 	= [0,0]
+		perr_ang	= [0,0]
+
+	# sometimes the error doesn't converge so replace those with 0 (instead of inf)
+	winf = np.where(np.isinf(perr_ang))[0]
+	if len(winf) > 0:
+		perr_ang[winf] = 0
+		perr_pc[winf] = 0
+
+	return bin_centers_pc, corr, corr_err, [popt_ang[0], perr_ang[0], popt_pc[0], perr_pc[0], popt_ang[1], perr_ang[1]]
+
+def generate_random_sc(sc_df, xmax, ymax, wcs_hst, mask, rseed=222):
+	""" generates a catalog of randomly placed 'star clusters'
+
+	Inputs:
+	sc_df 		pandas DataFrame 		dataframe which contains the star cluster catalog; really just to get the number of actual star clusters
+	xmax 	 	int 					the maximum pixel location in the x-direction of the hst image; i.e., if hst image is 13000x14000 pixels, xmax_hst = 13000
+	ymax 	 	int 					the maximum pixel location in the y-direction of the hst image; i.e., if hst image is 13000x14000 pixels, ymax_hst = 14000
+	wcs_hst 	astropy.wcs.wcs.WCS 	astropy wcs object of the hst image
+	mask 		array 					the data array of the hst-alma overlap mask image
+	rseed 		int 					the seed value which gets used for the numpy.random
+
+	Output:
+	rand_sc_df 	pandas DataFrame 		dataframe of the random star cluster catalog; includes x, y, ra, dec
+
+	"""
+	
+	np.random.seed(rseed)
+
+	# generate random uniform distribution of star clusters over the entire HST image
+	rand_x_full = np.random.uniform(0, xmax, size=4*len(sc_df))
+	rand_y_full = np.random.uniform(0, ymax, size=4*len(sc_df))
+
+	# convert x,y values to integers b/c np.random.uniform can only produce floats
+	rand_x_full_int = np.array([int(np.round(x)) for x in rand_x_full ])
+	rand_y_full_int = np.array([int(np.round(y)) for y in rand_y_full ])
+
+	# limit to those in the hst-alma overlap mask
+	rand_in_mask = np.array([True if mask[y,x] == 1 else False for y,x in zip(rand_y_full_int, rand_x_full_int)])
+
+	# convert to ra, dec using the hst image wcs info
+	rand_ra, rand_dec = wcs_hst.wcs_pix2world(rand_x_full[rand_in_mask], rand_y_full[rand_in_mask], 1.0)
+
+	# create dictionary with the random clusters' x,y,ra,dec positions
+	rand_sc_data = {'x': rand_x_full[rand_in_mask], 'y': rand_y_full[rand_in_mask], 'ra': rand_ra, 'dec': rand_dec }
+
+	# create a dataframe from the dictionary
+	rand_sc_df = pd.DataFrame(rand_sc_data)
+
+	return rand_sc_df
+
+def generate_random_gmc(gmc_df, xmax, ymax, wcs_alma, wcs_hst, mask, rseed=222):
+	""" generates a catalog of randomly placed 'gmcs'
+
+	Inputs:
+	gmc_df 		pandas DataFrame 		dataframe which contains the gmc catalog; really just to get the number of actual gmcs
+	xmax 	 	int 					the maximum pixel location in the x-direction of the alma image; i.e., if alma image is 1599x1598 pixels, xmax_alma = 1599
+	ymax 	 	int 					the maximum pixel location in the y-direction of the alma image; i.e., if alma image is 1599x1598 pixels, ymax_alma = 1598
+	wcs_alma 	astropy.wcs.wcs.WCS 	astropy wcs object of the alma image
+	wcs_hst 	astropy.wcs.wcs.WCS 	astropy wcs object of the hst image
+	mask 		array 					the data array of the hst-alma overlap mask image
+	rseed 		int 					the seed value which gets used for the numpy.random
+
+	Output:
+	rand_gmc_df pandas DataFrame 		dataframe of the random gmc catalog; includes x, y, ra, dec
+
+	"""
+
+	# generate random distribution of gmcs over the entire ALMA image
+	rand_x_full = np.random.uniform(0, xmax, size=2*len(gmc_df))
+	rand_y_full = np.random.uniform(0, ymax, size=2*len(gmc_df))
+
+	# convert pixels to ra, dec
+	rand_ra_full, rand_dec_full = wcs_alma.wcs_pix2world(rand_x_full, rand_y_full, 1.0)
+
+	# conver ra, dec to HST pixels
+	rand_x_full, rand_y_full = wcs_hst.wcs_world2pix(rand_ra_full, rand_dec_full, 1.0)
+
+	# convert x,y values to integers b/c np.random.uniform can only produce floats
+	rand_x_full_int = np.array([int(np.round(x)) for x in rand_x_full ])
+	rand_y_full_int = np.array([int(np.round(y)) for y in rand_y_full ])
+
+	# limit to those in the hst-alma overlap mask
+	rand_in_mask = np.array([True if mask[y,x] == 1 else False for y,x in zip(rand_y_full_int, rand_x_full_int)])
+	
+	# convert to ra, dec using the hst image wcs info
+	rand_ra, rand_dec = wcs_hst.wcs_pix2world(rand_x_full[rand_in_mask], rand_y_full[rand_in_mask], 1.0)
+	
+	# create dictionary with the random gmcs' x,y,ra,dec positions
+	rand_gmc_data = {'x': rand_x_full[rand_in_mask], 'y': rand_y_full[rand_in_mask], 'ra': rand_ra, 'dec': rand_dec }
+	
+	# create a dataframe from the dictionary
+	rand_gmc_df = pd.DataFrame(rand_gmc_data)
+
+	return rand_gmc_df
+
+
+def all_galaxies_crosscf(galaxy_list, data_dir, run_name, assoc_cat_suffix='_cluster_catalog_in_mask_class12_assoc_gmc', sc_class='class12', nbins=10 ):
+	""" function form of cf.py - loop through all the galaxies and do the cross correlation function analysis
+	
+	Inputs:
+	galaxy_list			astropy Table 	table that holds the list of galaxies to perform the analysis on
+	data_dir 			str 			path to the data directory; e.g., /cherokee1/turner/phangs/cf/data/
+	run_name 			str 			name of the run/test; e.g., run01
+	assoc_cat_suffix 	str 			suffix of the filename for the csv which holds the star cluster - gmc association dataframe
+	sc_class 			str 			which class of clusters to make the catalogs for; class12 or class123
+	nbins 				int; list		the number of radial bins over which to do the correlation; if a list, it'll loop through all the given nbsins
+
+
+	"""
+
+	gal_id 		= galaxy_list['id']
+	gal_dist 	= galaxy_list['dist']
+
+	for i in range(len(galaxy_list)):
+
+		# galaxy props
+		gal_name = gal_id[i]
+		dist = gal_dist[i]
+		print('')
+		print(gal_name)
+
+		# read in the star cluster cat in the hst-alma footprint overlap mask
+		sc_df = pd.read_csv(data_dir + '%s/%s/%s%s.csv'%(gal_name, run_name, gal_name, assoc_cat_suffix))
+
+		# read in the gmc cat in the hst-alma footprint overlap mask
+		gmc_cat = fits.open(data_dir + '%s/%s/%s_gmc_cat_masked.fits'%(gal_name, run_name, gal_name))[1].data
+		gmc_df = Table(gmc_cat).to_pandas()
+
+		# read in the HST-ALMA overlap mask (uses same wcs info as the HST image)
+		mask_hdu = fits.open(data_dir + '%s/%s_hst_alma_overlap_mask.fits'%(gal_name, gal_name))
+		mask = mask_hdu[0].data
+		mask_header = mask_hdu[0].header
+		wcs_hst = WCS(mask_header, fobj=mask_hdu)
+		# max pixel numbers
+		ymax_hst, xmax_hst = np.shape(mask)
+
+		# read in an ALMA image
+		alma_hdulist = fits.open(data_dir + '%s/alma/%s_12m+7m+tp_co21_broad_mom0.fits'%(gal_name, gal_name))
+		alma_header = alma_hdulist[0].header
+		alma_data = alma_hdulist[0].data
+		wcs_alma = WCS(alma_header, fobj=alma_hdulist, naxis=2)
+		ymax_alma, xmax_alma = np.shape(alma_data)
+
+		# check if nbins is a list or int; if int, make it a list of len 1
+		if type(nbins) == int:
+			nbins = [nbins]
+
+		for j in range(len(nbins)):
+
+			# cross-correlation function using all the star clusters
+			bin_centers_pc_all, corr_all, corr_err_all, pl_fit_all = cross_correlate_bootstrap(sc_df, gmc_df, wcs_hst, xmax_hst, ymax_hst, 
+																							  wcs_alma, xmax_alma, ymax_alma, mask, dist, 
+																							  nbootstraps=50, nbins=nbins[j])
+			
+			# now with clusters <= 10 Myr
+			wleq10 = sc_df['age'] <= 10
+			bin_centers_pc_young, corr_young, corr_err_young, pl_fit_young = cross_correlate_bootstrap(sc_df.loc[wleq10], gmc_df, wcs_hst, xmax_hst, ymax_hst, 
+																							  wcs_alma, xmax_alma, ymax_alma, mask, dist, 
+																							  nbootstraps=50, nbins=nbins[j])
+
+			# now with clusters > 10 Myr
+			w10 = sc_df['age'] > 10
+			bin_centers_pc_old, corr_old, corr_err_old, pl_fit_old = cross_correlate_bootstrap(sc_df.loc[w10], gmc_df, wcs_hst, xmax_hst, ymax_hst, 
+																							  wcs_alma, xmax_alma, ymax_alma, mask, dist, 
+																							  nbootstraps=50, nbins=nbins[j])
+
+			# create figure
+			fig, ax = plt.subplots(1,1, figsize=(5,5))
+			ax.set_xscale('log')
+			ax.set_yscale('log')
+			ax.set_xlabel(r'$r$ [pc]')
+			ax.set_ylabel(r'$1 + \omega(\theta)$')
+
+			# all clusters
+			ax.errorbar(bin_centers_pc_all, corr_all, yerr=corr_err_all, fmt='k-o', ecolor='black', markersize=5, lw=1.5, 
+					label=r'All SCs $\alpha=%.2f\pm%.2f$ (%i) '%(pl_fit_all[4], pl_fit_all[5], len(sc_df)))
+			# clusters <= 10 Myr
+			ax.errorbar(bin_centers_pc_young, corr_young, yerr=corr_err_young, fmt='-o', color='#377eb8', ecolor='#377eb8', markersize=5, lw=1.5, 
+					label=r'$\leq 10$ Myr $\alpha=%.2f\pm%.2f$ (%i) '%(pl_fit_young[4], pl_fit_young[5], len(sc_df.loc[wleq10])))
+			# clusters > 10 Myr
+			ax.errorbar(bin_centers_pc_old, corr_old, yerr=corr_err_old, fmt='-o', color='#e41a1c', ecolor='#e41a1c', markersize=5, lw=1.5, 
+					label=r'$> 10$ Myr $\alpha=%.2f\pm%.2f$ (%i) '%(pl_fit_old[4], pl_fit_old[5], len(sc_df.loc[w10])))
+			# plot vertical line at mean GMC radius
+			ax.axvline(gmc_df.mean()['RAD3D_PC'], lw=1.1, c='#999999', zorder=0)
+
+			plt.legend(loc='upper right', fontsize='x-small')
+			plt.savefig(data_dir + '%s/%s/%s_crosscf.nbins%02d.png'%(gal_name, run_name, gal_name, nbins[j]), bbox_inches='tight')
+			plt.savefig(data_dir + '%s/%s/%s_crosscf.nbins%02d.pdf'%(gal_name, run_name, gal_name, nbins[j]), bbox_inches='tight')
+			plt.close()
+
+
+			# write out the power law best fits for all, young, old
+			f = open(data_dir + '%s/%s/%s_crosscf_fits.nbins%02d.dat'%(gal_name, run_name, gal_name, nbins[j]), 'w')
+
+			f.write('{:<6}  '.format('# bin'))
+			f.write('{:<6}  '.format('Aw_deg'))
+			f.write('{:<5}  '.format('error'))
+			f.write('{:<6}  '.format('Aw_pc'))
+			f.write('{:<6}  '.format('error'))
+			f.write('{:<6}  '.format('alpha'))
+			f.write('{:<5}  '.format('error'))
+			f.write('\n')
+
+			f.write('{:<6}  '.format('all'))
+			f.write('{:>6}  '.format('%.3f'%(pl_fit_all[0])))
+			f.write('{:>5}  '.format('%.3f'%(pl_fit_all[1])))
+			f.write('{:>6}  '.format('%.3f'%(pl_fit_all[2])))
+			f.write('{:>6}  '.format('%.3f'%(pl_fit_all[3])))
+			f.write('{:>6}  '.format('%.3f'%(pl_fit_all[4])))
+			f.write('{:>5}  '.format('%.3f'%(pl_fit_all[5])))
+			f.write('\n')
+
+			f.write('{:<6}  '.format('<= 10'))
+			f.write('{:>6}  '.format('%.3f'%(pl_fit_young[0])))
+			f.write('{:>5}  '.format('%.3f'%(pl_fit_young[1])))
+			f.write('{:>6}  '.format('%.3f'%(pl_fit_young[2])))
+			f.write('{:>6}  '.format('%.3f'%(pl_fit_young[3])))
+			f.write('{:>6}  '.format('%.3f'%(pl_fit_young[4])))
+			f.write('{:>5}  '.format('%.3f'%(pl_fit_young[5])))
+			f.write('\n')
+
+			f.write('{:<6}  '.format('> 10'))
+			f.write('{:>6}  '.format('%.3f'%(pl_fit_old[0])))
+			f.write('{:>5}  '.format('%.3f'%(pl_fit_old[1])))
+			f.write('{:>6}  '.format('%.3f'%(pl_fit_old[2])))
+			f.write('{:>6}  '.format('%.3f'%(pl_fit_old[3])))
+			f.write('{:>6}  '.format('%.3f'%(pl_fit_old[4])))
+			f.write('{:>5}  '.format('%.3f'%(pl_fit_old[5])))
+			f.close()
+
+			logbins  = np.log10(bin_centers_pc_all)
+
+			# write out the bin centers and correlation values
+			if j == 0:
+				f = open(data_dir + '%s/%s/%s_crosscf.dat'%(gal_name, run_name, gal_name), 'w')
+				f.write('# cross correlation function values (1 + omega(theta)); bin centers in are given in log(pc)\n')
+			else:
+				f = open(data_dir + '%s/%s/%s_crosscf.dat'%(gal_name, run_name, gal_name), 'a')
+
+			f.write('{:<8}  '.format('nbins%02d'%nbins[j]))
+			for k in range(nbins[j]):
+				f.write('{:>6}  '.format('%.3f'%(logbins[k])))
+			
+			f.write('\n')
+			f.write('{:<8}  '.format('corr_all'))
+			for k in range(nbins[j]):
+				f.write('{:>6}  '.format('%.3f'%(corr_all[k])))
+
+			f.write('\n')
+			f.write('{:<8}  '.format('corr_yng'))
+			for k in range(nbins[j]):
+				f.write('{:>6}  '.format('%.3f'%(corr_young[k])))
+
+			f.write('\n')
+			f.write('{:<8}  '.format('corr_old'))
+			for k in range(nbins[j]):
+				f.write('{:>6}  '.format('%.3f'%(corr_old[k])))
+
+			f.write('\n\n')
+			f.close()
