@@ -1488,6 +1488,10 @@ def auto_corr(df, min_bin=1.1e-5, nbins=10, nbootstraps=50, method='landy-szalay
 	return results
 
 def powerlaw_func(theta, Aw, alpha):
+	""" a powerlaw function of the form 
+	f(theta) = Aw * theta^alpha
+
+	"""
 	return Aw * theta**alpha
 
 def tpcf(df, dist, **kwargs):
@@ -1668,11 +1672,8 @@ def all_galaxies_tpcf(galaxy_list, data_dir, run_name, assoc_cat_suffix='_cluste
 
 
 			# write out the bin centers and correlation values
-			if j == 0:
-				f = open(data_dir + '%s/%s/%s_tpcf.dat'%(gal_name, run_name, gal_name), 'w')
-				f.write('# two-point correlation function values (1 + omega(theta)); bin centers in are given in log(pc)\n')
-			else:
-				f = open(data_dir + '%s/%s/%s_tpcf.dat'%(gal_name, run_name, gal_name), 'a')
+			f = open(data_dir + '%s/%s/%s_tpcf.nbins%02d.dat'%(gal_name, run_name, gal_name, nbins[j]), 'w')
+			f.write('# two-point correlation function values (1 + omega(theta)); bin centers in are given in log(pc)\n')
 
 			f.write('{:<8}  '.format('nbins%02d'%nbins[j]))
 			for k in range(nbins[j]):
@@ -1703,7 +1704,6 @@ def all_galaxies_tpcf(galaxy_list, data_dir, run_name, assoc_cat_suffix='_cluste
 			for k in range(nbins[j]):
 				f.write('{:>6}  '.format('%.3f'%(corr_gmc[k])))
 
-			f.write('\n\n')
 			f.close()
 
 def cross_correlate(sc_df, gmc_df, rand_sc_df, rand_gmc_df, dist, nbins=16, min_bin=1.1e-5):
@@ -1873,7 +1873,7 @@ def cross_correlate_bootstrap(sc_df, gmc_df, wcs_hst, xmax_hst, ymax_hst, wcs_al
 		popt_pc, pcov  = curve_fit(powerlaw_func, bin_centers_pc[wnnan], corr[wnnan])
 		perr_pc 	   = np.sqrt(np.diag(pcov))
 	except:
-		print('\ncross correlation power law fit for nbins = %i'%(len(bin_centers)))
+		print('\ncross correlation power law fit failed for nbins = %i'%(len(bin_centers)))
 
 		popt_ang	= [0,0]
 		perr_ang	= [0,0]
@@ -2037,8 +2037,8 @@ def all_galaxies_crosscf(galaxy_list, data_dir, run_name, assoc_cat_suffix='_clu
 			# now with clusters <= 10 Myr
 			wleq10 = sc_df['age'] <= 10
 			bin_centers_pc_young, corr_young, corr_err_young, pl_fit_young = cross_correlate_bootstrap(sc_df.loc[wleq10], gmc_df, wcs_hst, xmax_hst, ymax_hst, 
-																							  wcs_alma, xmax_alma, ymax_alma, mask, dist, 
-																							  nbootstraps=50, nbins=nbins[j])
+																									   wcs_alma, xmax_alma, ymax_alma, mask, dist, 
+																									   nbootstraps=50, nbins=nbins[j])
 
 			# now with clusters > 10 Myr
 			w10 = sc_df['age'] > 10
@@ -2113,12 +2113,9 @@ def all_galaxies_crosscf(galaxy_list, data_dir, run_name, assoc_cat_suffix='_clu
 			logbins  = np.log10(bin_centers_pc_all)
 
 			# write out the bin centers and correlation values
-			if j == 0:
-				f = open(data_dir + '%s/%s/%s_crosscf.dat'%(gal_name, run_name, gal_name), 'w')
-				f.write('# cross correlation function values (1 + omega(theta)); bin centers in are given in log(pc)\n')
-			else:
-				f = open(data_dir + '%s/%s/%s_crosscf.dat'%(gal_name, run_name, gal_name), 'a')
-
+			f = open(data_dir + '%s/%s/%s_crosscf.nbins%02d.dat'%(gal_name, run_name, gal_name, nbins[j]), 'w')
+			f.write('# cross correlation function values (1 + omega(theta)); bin centers in are given in log(pc)\n')
+			
 			f.write('{:<8}  '.format('nbins%02d'%nbins[j]))
 			for k in range(nbins[j]):
 				f.write('{:>6}  '.format('%.3f'%(logbins[k])))
@@ -2138,5 +2135,4 @@ def all_galaxies_crosscf(galaxy_list, data_dir, run_name, assoc_cat_suffix='_clu
 			for k in range(nbins[j]):
 				f.write('{:>6}  '.format('%.3f'%(corr_old[k])))
 
-			f.write('\n\n')
 			f.close()
