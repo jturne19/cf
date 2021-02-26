@@ -919,18 +919,19 @@ def all_galaxies_sc_gmc_sep(galaxy_list, data_dir, run_name, mkhist=True, sc_cat
 		idx_sc  = idx_sc.reshape(len(idx_sc))
 		idx_gmc = idx_gmc.reshape(len(idx_gmc))
 
-		# get nearest neighbor gmc cloudnum and radius
+		# get nearest neighbor gmc cloudnum, radius, and mass [luminosity mass]
 		# R_3D for the cloud radius as this takes into account the galaxy scale height (assumes 100 pc) 
 		# which restricts cloud sizes within the disk of the galaxy
 		nn_gmc_cloudnum  = gmc_cat['CLOUDNUM'][idx_gmc]
 		nn_gmc_radius_pc = gmc_cat['RAD3D_PC'][idx_gmc]
-	
+		nn_gmc_mlum 	 = gmc_cat['MLUM_MSUN'][idx_gmc]
+
 		# convert gmc radius from pc to arcsec
 		nn_gmc_radius_radian = nn_gmc_radius_pc/(gal_dist[0]*1e6)
 		nn_gmc_radius_asec   = nn_gmc_radius_radian*u.rad.to(u.arcsec)
 
 		# going to make a pandas dataframe for the star clusters within the overlap mask with:
-		# ra, dec, hst_x, hst_y, alma_x, alma_y, sc_age + err, sc_mass + err, sc_ebv + err, environmental_mask_value, nn_gmc_cloudnum, nn_gmc_radius_pc + arcsec, nn_gmc_sep, nn_gmc_dist
+		# ra, dec, hst_x, hst_y, alma_x, alma_y, sc_age + err, sc_mass + err, sc_ebv + err, environmental_mask_value, nn_gmc_cloudnum, nn_gmc_mlum, nn_gmc_radius_pc + arcsec, nn_gmc_sep, nn_gmc_dist
 
 		# need the star cluster pixel positions within the ALMA maps for easy placement within the environmental masks 
 		alma_x, alma_y = get_alma_pixel_coords(sc_ra, sc_dec, gal_name, data_dir)
@@ -956,7 +957,7 @@ def all_galaxies_sc_gmc_sep(galaxy_list, data_dir, run_name, mkhist=True, sc_cat
 				   'age': sc_cat_masked['PHANGS_AGE_MINCHISQ'], 'age_err': sc_cat_masked['PHANGS_AGE_MINCHISQ_ERR'], 
 				   'mass': sc_cat_masked['PHANGS_MASS_MINCHISQ'], 'mass_err': sc_cat_masked['PHANGS_MASS_MINCHISQ_ERR'], 
 				   'ebv': sc_cat_masked['PHANGS_EBV_MINCHISQ'], 'ebv_err': sc_cat_masked['PHANGS_EBV_MINCHISQ_ERR'],
-				   'env_mask_val': sc_env_mask_val, 'nn_cloudnum': nn_gmc_cloudnum, 'nn_gmc_radius_pc': nn_gmc_radius_pc, 'nn_gmc_radius_asec': nn_gmc_radius_asec, 
+				   'env_mask_val': sc_env_mask_val, 'nn_cloudnum': nn_gmc_cloudnum, 'nn_gmc_mlum': nn_gmc_mlum, 'nn_gmc_radius_pc': nn_gmc_radius_pc, 'nn_gmc_radius_asec': nn_gmc_radius_asec, 
 				   'nn_sep_asec': nn_sep, 'nn_dist_pc': nn_dist }
 		
 		sc_df = Table(df_data).to_pandas()
@@ -1138,10 +1139,19 @@ def generate_sc_gmc_assoc_df(galaxy_list, data_dir, run_name, sc_mask_cat_suffix
 		# 0 = unassociated, 1 = w/in 1 gmc rad, 2 = b/w 1 and 2 gmc rad, 3 = b/w 2 and 3 gmc rad
 		assoc_num = np.zeros(len(sc_df2))
 		assoc_num[sc_track] = assoc_track
+
+		# associated gmc mass and radius
+		assoc_gmc_mlum = np.zeros(len(sc_df2)) + np.nan
+		assoc_gmc_mlum[sc_track] = gmc_cat['MLUM_MSUN'][gmc_track]
+		
+		assoc_gmc_radius = np.zeros(len(sc_df2)) + np.nan
+		assoc_gmc_radius[sc_track] = gmc_cat['RAD3D_PC'][gmc_track]
 	
 		# insert those new columns
-		sc_df2['assoc_gmc_cloudnum'] = assoc_gmc_cloudnum
-		sc_df2['assoc_num'] = assoc_num
+		sc_df2['assoc_gmc_cloudnum']  = assoc_gmc_cloudnum
+		sc_df2['assoc_gmc_mlum'] 	  = assoc_gmc_mlum
+		sc_df2['assoc_gmc_radius_pc'] = assoc_gmc_radius
+		sc_df2['assoc_num'] 		  = assoc_num
 	
 		# output to csv file
 		sc_df2.to_csv(data_dir + '%s/%s/%s%s.csv'%(gal_name, run_name, gal_name, filename), index=False)
