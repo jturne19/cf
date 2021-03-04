@@ -14,17 +14,17 @@ set to csv mode
 ```
 
 import the csv mega df to the 'clusters' table
-```
+```sqlite3
 .import /cherokee1/turner/phangs/cf/data/sc_gmc_assoc_mega.class123.csv clusters
 ```
 
 verify import
-```
+```sqlite3
 .schema clusters
 ```
 
 change back to column mode for easier reading
-```
+```sqlite3
 .mode column
 ```
 
@@ -71,54 +71,54 @@ INSERT INTO clusters (gal_name,id,class,ra,dec,hst_x,hst_y,alma_x,alma_y,age,age
 ## couple of useful examples
 
 show everything 
-```
+```sql
 SELECT * FROM clusters;
 ```
 
 pull out specific galaxies
-```
+```sql
 SELECT * 
 FROM clusters
 WHERE gal_name = 'ngc0628';
 ```
 
 select just class 1 and 2
-```
+```sql
 SELECT * 
 FROM clusters
 WHERE class IN (1, 2);
 ```
 
 select just class 3
-```
+```sql
 SELECT * 
 FROM clusters
 WHERE class = 3;
 ```
 
 select class 1 and 2 in ngc3351
-```
+```sql
 SELECT * 
 FROM clusters
 WHERE class IN (1, 2) AND gal_name = 'ngc3351';
 ```
 
 get ages for all spiral arm clusters (assoc_num = )
-```
+```sql
 SELECT age
 FROM clusters 
 WHERE env_mask_val IN (5,6);
 ```
 
 select multiple columns in certain galaxy 
-```
+```sql
 SELECT age, age_err, mass, mass_err
 FROM clusters
 WHERE gal_name = 'ngc3351';
 ```
 
 clusters which are associated with gmcs 
-```
+```sql
 SELECT *
 FROM clusters 
 WHERE assoc_num IS NOT 0;
