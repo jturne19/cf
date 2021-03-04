@@ -953,7 +953,7 @@ def all_galaxies_sc_gmc_sep(galaxy_list, data_dir, run_name, mkhist=True, sc_cat
 		sc_env_mask_val = np.array([env_mask[y, x] for y,x in zip(env_mask_y_int, env_mask_x_int) ], dtype='int')
 
 		# create dictionary with all the data which will go into the pandas dataframe
-		df_data = {'id': sc_cat_masked['ID_PHANGS_ALLSOURCES_V0_9'], 'ra': sc_ra, 'dec': sc_dec, 'hst_x': sc_x, 'hst_y': sc_y, 'alma_x': alma_x, 'alma_y': alma_y,
+		df_data = {'id': sc_cat_masked['ID_PHANGS_ALLSOURCES_V0_9'], 'class': sc_cat_masked['PHANGS_CLUSTER_CLASS'], 'ra': sc_ra, 'dec': sc_dec, 'hst_x': sc_x, 'hst_y': sc_y, 'alma_x': alma_x, 'alma_y': alma_y,
 				   'age': sc_cat_masked['PHANGS_AGE_MINCHISQ'], 'age_err': sc_cat_masked['PHANGS_AGE_MINCHISQ_ERR'], 
 				   'mass': sc_cat_masked['PHANGS_MASS_MINCHISQ'], 'mass_err': sc_cat_masked['PHANGS_MASS_MINCHISQ_ERR'], 
 				   'ebv': sc_cat_masked['PHANGS_EBV_MINCHISQ'], 'ebv_err': sc_cat_masked['PHANGS_EBV_MINCHISQ_ERR'],
